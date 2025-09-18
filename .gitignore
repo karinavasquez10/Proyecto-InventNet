@@ -33,7 +33,6 @@ logs
 dump/
 
 # React / Vite
-public/assets/
 coverage/
 
 # Misc
