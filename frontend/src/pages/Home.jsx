@@ -3,6 +3,9 @@ import { Plus, Minus, Trash2, ShoppingCart, Users, Box, FileText, Archive } from
 import Cobrar from './Cobrar';
 import Catalogo from './Catalogo'; 
 import CerrarCaja from "./CerrarCaja";
+import ConsultaFacturas from './ConsultaFacturas';
+import ConsultaProductos from './ConsultaProductos';
+import AbrirCaja from './AbrirCaja';
 
 const POSHome = () => {
   const products = [
@@ -28,6 +31,10 @@ const POSHome = () => {
   const [showCobrar, setShowCobrar] = useState(false);
   const [showCatalogo, setShowCatalogo] = useState(false); // <-- estado para modal catálogo
   const [showCerrarCaja, setShowCerrarCaja] = useState(false);
+  const [showC, setShowC] = useState(false);
+  const [showFacturas, setShowFacturas] = useState(false);     // ⬅️ estado separado
+  const [showInventario, setShowInventario] = useState(false); 
+  const [showAbrirCaja, setShowAbrirCaja] = useState(false); 
 
   const filteredProducts = selectedCategory === 'Todas'
     ? products
@@ -91,25 +98,44 @@ const POSHome = () => {
         {/* Barra superior - Módulos */}
         <div className="bg-gray-800 p-3 flex gap-3 text-sm text-white border-b border-gray-700">
           <button className="flex items-center gap-2 px-3 py-2 hover:bg-gray-700 rounded"><Users size={16}/> Clientes</button>
-          <button className="flex items-center gap-2 px-3 py-2 hover:bg-gray-700 rounded"><Box size={16}/> Abrir Caja</button>
+          {/* botón Abrir Caja */}
+        <button
+          onClick={() => setShowAbrirCaja(true)}
+          className="flex items-center gap-2 px-3 py-2 hover:bg-gray-700 rounded"
+        >
+          <Box size={16} /> Abrir Caja
+        </button>
 
           <button 
           onClick={() => setShowCerrarCaja(true)} 
           className="flex items-center gap-2 px-3 py-2 hover:bg-gray-700 rounded"
-        >
+          >
           <Box size={16}/> Cerrar Caja
+          </button>
+
+                <button
+          onClick={() => setShowFacturas(true)}
+          className="flex items-center gap-2 px-3 py-2 hover:bg-gray-700 rounded"
+        >
+          <Archive size={16}/> Consultar Facturas
         </button>
 
-          <button className="flex items-center gap-2 px-3 py-2 hover:bg-gray-700 rounded"><FileText size={16}/> Consultar Facturas</button>
+        <button
+          onClick={() => setShowCatalogo(true)}
+          className="flex items-center gap-2 px-3 py-2 hover:bg-gray-700 rounded"
+        >
+          <Archive size={16}/> Catálogo
+        </button>
 
-          {/* 👇 Ajustamos este botón */}
-          <button 
-            onClick={() => setShowCatalogo(true)} 
-            className="flex items-center gap-2 px-3 py-2 hover:bg-gray-700 rounded"
-          >
-            <Archive size={16}/> Catálogo
-          </button>
-          <button className="flex items-center gap-2 px-3 py-2 hover:bg-gray-700 rounded"><Archive size={16}/> Inventario</button>
+        <button
+          onClick={() => setShowInventario(true)}
+          className="flex items-center gap-2 px-3 py-2 hover:bg-gray-700 rounded"
+        >
+          <Archive size={16}/> Inventario
+        </button>
+
+
+      
         </div>
 
         {/* Productos */}
@@ -269,7 +295,20 @@ const POSHome = () => {
       onClose={() => setShowCerrarCaja(false)} 
     />
   </div>
+  
 )}
+<ConsultaFacturas open={showFacturas} onClose={() => setShowFacturas(false)} />
+      <ConsultaProductos open={showInventario} onClose={() => setShowInventario(false)} />
+
+        {/* Modal Abrir Caja */}
+      <AbrirCaja
+        open={showAbrirCaja}
+        onClose={() => setShowAbrirCaja(false)}
+        onConfirm={(payload) => {
+          console.log("Caja abierta:", payload);
+          // aquí podrías disparar un fetch a tu backend si lo deseas
+        }}
+      />
     </div>
   );
 };

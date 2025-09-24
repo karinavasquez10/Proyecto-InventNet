@@ -16,7 +16,7 @@ const denominaciones = [
 ];
 
 const CerrarCaja = ({ ventas, onClose }) => {
-  // ventas = { efectivo: 200000, tarjeta: 150000, nequi: 50000 }
+ 
   const [conteo, setConteo] = useState({});
 
   const handleChange = (value, cantidad) => {
