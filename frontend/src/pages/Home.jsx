@@ -6,6 +6,7 @@ import CerrarCaja from "./CerrarCaja";
 import ConsultaFacturas from './ConsultaFacturas';
 import ConsultaProductos from './ConsultaProductos';
 import AbrirCaja from './AbrirCaja';
+import Clientes from './Clientes';
 
 const POSHome = () => {
   const products = [
@@ -35,6 +36,8 @@ const POSHome = () => {
   const [showFacturas, setShowFacturas] = useState(false);     // ⬅️ estado separado
   const [showInventario, setShowInventario] = useState(false); 
   const [showAbrirCaja, setShowAbrirCaja] = useState(false); 
+  const [showClientes, setShowClientes] = useState(false); 
+
 
   const filteredProducts = selectedCategory === 'Todas'
     ? products
@@ -97,7 +100,15 @@ const POSHome = () => {
       <div className="flex-1 flex flex-col bg-black">
         {/* Barra superior - Módulos */}
         <div className="bg-gray-800 p-3 flex gap-3 text-sm text-white border-b border-gray-700">
-          <button className="flex items-center gap-2 px-3 py-2 hover:bg-gray-700 rounded"><Users size={16}/> Clientes</button>
+      
+         <button
+          onClick={() => setShowClientes(true)}
+          className="flex items-center gap-2 px-3 py-2 hover:bg-gray-700 rounded text-white"
+        >
+          <Users size={16} /> Clientes
+        </button>
+
+
           {/* botón Abrir Caja */}
         <button
           onClick={() => setShowAbrirCaja(true)}
@@ -297,8 +308,9 @@ const POSHome = () => {
   </div>
   
 )}
-<ConsultaFacturas open={showFacturas} onClose={() => setShowFacturas(false)} />
-      <ConsultaProductos open={showInventario} onClose={() => setShowInventario(false)} />
+    <ConsultaFacturas open={showFacturas} onClose={() => setShowFacturas(false)} />
+    <ConsultaProductos open={showInventario} onClose={() => setShowInventario(false)} />
+    <Clientes open={showClientes} onClose={() => setShowClientes(false)} />
 
         {/* Modal Abrir Caja */}
       <AbrirCaja

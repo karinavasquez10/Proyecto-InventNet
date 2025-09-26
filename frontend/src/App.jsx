@@ -1,4 +1,5 @@
 import './index.css'
+
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 
 // src/App.jsx
@@ -11,6 +12,7 @@ import HomeAdmin from './pages/HomeAdmin';
 import ConsultaFacturas from './pages/ConsultaFacturas';
 import ConsultaProductos from './pages/ConsultaProductos';
 import AbrirCaja from './pages/AbrirCaja';
+import Clientes from './pages/Clientes';
 
 
 function App() {
@@ -19,7 +21,7 @@ function App() {
       <Router>
         <Routes>
           <Route path="/" element={<Home />} />
-          <Route path="/login" element={<LoginForm />} />
+          <Route path="/loginForm" element={<LoginForm />} />
           <Route path="/cobrar" element={<Cobrar />} />
           <Route path="/Catalogo" element={<Catalogo/>}/>
           <Route path="/CerrarCaja" element={<CerrarCaja/>}/>
@@ -27,6 +29,7 @@ function App() {
           <Route path="/ConsultaFacturas" element={<ConsultaFacturas/>}/>
           <Route path="/ConsultaProductos" element={<ConsultaProductos/>}/>
            <Route path="/AbrirCaja" element={<AbrirCaja/>}/>
+           <Route path="/Clientes" element={<Clientes/>}/>
          
         </Routes>
       </Router>
