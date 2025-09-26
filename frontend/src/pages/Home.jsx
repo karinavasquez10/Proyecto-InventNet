@@ -30,10 +30,10 @@ const POSHome = () => {
   const [selectedCategory, setSelectedCategory] = useState('Todas');
   const [searchQuery, setSearchQuery] = useState("");
   const [showCobrar, setShowCobrar] = useState(false);
-  const [showCatalogo, setShowCatalogo] = useState(false); // <-- estado para modal catálogo
+  const [showCatalogo, setShowCatalogo] = useState(false); 
   const [showCerrarCaja, setShowCerrarCaja] = useState(false);
   const [showC, setShowC] = useState(false);
-  const [showFacturas, setShowFacturas] = useState(false);     // ⬅️ estado separado
+  const [showFacturas, setShowFacturas] = useState(false);     
   const [showInventario, setShowInventario] = useState(false); 
   const [showAbrirCaja, setShowAbrirCaja] = useState(false); 
   const [showClientes, setShowClientes] = useState(false); 
