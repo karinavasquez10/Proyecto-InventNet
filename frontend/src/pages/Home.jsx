@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Plus, Minus, Trash2, ShoppingCart, Users, Box, FileText, Archive } from 'lucide-react';
 import Cobrar from './Cobrar';
 import Catalogo from './Catalogo'; 
@@ -9,39 +9,81 @@ import AbrirCaja from './AbrirCaja';
 import Clientes from './Clientes';
 
 const POSHome = () => {
-  const products = [
-    { id: 1, name: 'Hamburguesa Clásica', price: 15000, image: '🍔', category: 'Hamburguesas' },
-    { id: 2, name: 'Pizza Margherita', price: 25000, image: '🍕', category: 'Pizzas' },
-    { id: 3, name: 'Tacos Mexicanos', price: 12000, image: '🌮', category: 'Mexicana' },
-    { id: 4, name: 'Sushi Roll', price: 30000, image: '🍣', category: 'Japonesa' },
-    { id: 5, name: 'Pasta Carbonara', price: 18000, image: '🍝', category: 'Italiana' },
-    { id: 6, name: 'Pollo Asado', price: 22000, image: '🍗', category: 'Carnes' },
-    { id: 7, name: 'Ensalada César', price: 14000, image: '🥗', category: 'Ensaladas' },
-    { id: 8, name: 'Sandwich Club', price: 16000, image: '🥪', category: 'Sandwiches' },
-    { id: 9, name: 'Burrito', price: 17000, image: '🌯', category: 'Mexicana' },
-    { id: 10, name: 'Hot Dog', price: 10000, image: '🌭', category: 'Rápida' },
-    { id: 11, name: 'Donut Glaseado', price: 5000, image: '🍩', category: 'Postres' },
-    { id: 12, name: 'Café Americano', price: 6000, image: '☕', category: 'Bebidas' }
-  ];
-
-  const categories = ['Todas', 'Hamburguesas', 'Pizzas', 'Mexicana', 'Japonesa', 'Italiana', 'Carnes', 'Ensaladas', 'Sandwiches', 'Rápida', 'Postres', 'Bebidas'];
-
+  const [products, setProducts] = useState([]);
+  const [categories, setCategories] = useState([{ id: null, nombre: 'Todas' }]);
   const [cart, setCart] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState('Todas');
   const [searchQuery, setSearchQuery] = useState("");
   const [showCobrar, setShowCobrar] = useState(false);
-  const [showCatalogo, setShowCatalogo] = useState(false); // <-- estado para modal catálogo
+  const [showCatalogo, setShowCatalogo] = useState(false);
   const [showCerrarCaja, setShowCerrarCaja] = useState(false);
-  const [showC, setShowC] = useState(false);
-  const [showFacturas, setShowFacturas] = useState(false);     // ⬅️ estado separado
+  const [showFacturas, setShowFacturas] = useState(false);
   const [showInventario, setShowInventario] = useState(false); 
   const [showAbrirCaja, setShowAbrirCaja] = useState(false); 
   const [showClientes, setShowClientes] = useState(false); 
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
+  // Cargar productos y categorías
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
 
-  const filteredProducts = selectedCategory === 'Todas'
-    ? products
-    : products.filter(product => product.category === selectedCategory);
+        const [productResponse, categoryResponse] = await Promise.all([
+          fetch('http://localhost:5000/api/products/productos'),
+          fetch('http://localhost:5000/api/categorias')
+        ]);
+
+        if (!productResponse.ok || !categoryResponse.ok) {
+          throw new Error('Error al obtener datos');
+        }
+
+        const productsData = await productResponse.json();
+        const categoriesData = await categoryResponse.json();
+
+        // Formatear productos
+        const formattedProducts = productsData.map(product => ({
+          id: product.id_producto,
+          name: product.nombre,
+          price: product.precio_venta,
+          category: product.id_categoria,
+          stock: product.stock_actual,
+          image: '🛍️'
+        }));
+
+        setProducts(formattedProducts);
+
+        // Formatear categorías
+        const categoryNames = [{ id: null, nombre: 'Todas' }, ...categoriesData.map(cat => ({ id: cat.id_categoria, nombre: cat.nombre }))];
+        setCategories(categoryNames);
+
+      } catch (error) {
+        setError(error.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  // Filtrado de productos por categoría seleccionada
+  const getFilteredProducts = () => {
+    if (selectedCategory === 'Todas') {
+      return products.filter(product => product.stock > 0);
+    } else {
+      // Buscar el id de la categoría seleccionada
+      const selectedCatObj = categories.find(cat => cat.nombre === selectedCategory);
+      if (!selectedCatObj || selectedCatObj.id === null) return [];
+      return products.filter(
+        product => product.category === selectedCatObj.id && product.stock > 0
+      );
+    }
+  };
+
+  const filteredProducts = getFilteredProducts();
 
   const addToCart = (product) => {
     const existingItem = cart.find(item => item.id === product.id);
@@ -84,13 +126,15 @@ const POSHome = () => {
         <div className="flex-1 overflow-y-auto">
           {categories.map(category => (
             <button
-              key={category}
-              onClick={() => setSelectedCategory(category)}
+              key={category.nombre}
+              onClick={() => {
+                setSelectedCategory(category.nombre);
+              }}
               className={`w-full px-4 py-3 text-left text-sm border-b border-gray-800 hover:bg-gray-700 ${
-                selectedCategory === category ? 'bg-orange-500 font-bold' : ''
+                selectedCategory === category.nombre ? 'bg-orange-500 font-bold' : ''
               }`}
             >
-              {category}
+              {category.nombre}
             </button>
           ))}
         </div>
@@ -100,53 +144,42 @@ const POSHome = () => {
       <div className="flex-1 flex flex-col bg-black">
         {/* Barra superior - Módulos */}
         <div className="bg-gray-800 p-3 flex gap-3 text-sm text-white border-b border-gray-700">
-      
-         <button
-          onClick={() => setShowClientes(true)}
-          className="flex items-center gap-2 px-3 py-2 hover:bg-gray-700 rounded text-white"
-        >
-          <Users size={16} /> Clientes
-        </button>
-
-
-          {/* botón Abrir Caja */}
-        <button
-          onClick={() => setShowAbrirCaja(true)}
-          className="flex items-center gap-2 px-3 py-2 hover:bg-gray-700 rounded"
-        >
-          <Box size={16} /> Abrir Caja
-        </button>
-
-          <button 
-          onClick={() => setShowCerrarCaja(true)} 
-          className="flex items-center gap-2 px-3 py-2 hover:bg-gray-700 rounded"
+          <button
+            onClick={() => setShowClientes(true)}
+            className="flex items-center gap-2 px-3 py-2 hover:bg-gray-700 rounded text-white"
           >
-          <Box size={16}/> Cerrar Caja
+            <Users size={16} /> Clientes
           </button>
-
-                <button
-          onClick={() => setShowFacturas(true)}
-          className="flex items-center gap-2 px-3 py-2 hover:bg-gray-700 rounded"
-        >
-          <Archive size={16}/> Consultar Facturas
-        </button>
-
-        <button
-          onClick={() => setShowCatalogo(true)}
-          className="flex items-center gap-2 px-3 py-2 hover:bg-gray-700 rounded"
-        >
-          <Archive size={16}/> Catálogo
-        </button>
-
-        <button
-          onClick={() => setShowInventario(true)}
-          className="flex items-center gap-2 px-3 py-2 hover:bg-gray-700 rounded"
-        >
-          <Archive size={16}/> Inventario
-        </button>
-
-
-      
+          <button
+            onClick={() => setShowAbrirCaja(true)}
+            className="flex items-center gap-2 px-3 py-2 hover:bg-gray-700 rounded"
+          >
+            <Box size={16} /> Abrir Caja
+          </button>
+          <button 
+            onClick={() => setShowCerrarCaja(true)} 
+            className="flex items-center gap-2 px-3 py-2 hover:bg-gray-700 rounded"
+          >
+            <Box size={16}/> Cerrar Caja
+          </button>
+          <button
+            onClick={() => setShowFacturas(true)}
+            className="flex items-center gap-2 px-3 py-2 hover:bg-gray-700 rounded"
+          >
+            <Archive size={16}/> Consultar Facturas
+          </button>
+          <button
+            onClick={() => setShowCatalogo(true)}
+            className="flex items-center gap-2 px-3 py-2 hover:bg-gray-700 rounded"
+          >
+            <Archive size={16}/> Catálogo
+          </button>
+          <button
+            onClick={() => setShowInventario(true)}
+            className="flex items-center gap-2 px-3 py-2 hover:bg-gray-700 rounded"
+          >
+            <Archive size={16}/> Inventario
+          </button>
         </div>
 
         {/* Productos */}
@@ -165,6 +198,11 @@ const POSHome = () => {
                 </span>
               </div>
             ))}
+            {filteredProducts.length === 0 && (
+              <div className="col-span-full text-center text-gray-400 py-10">
+                No hay productos disponibles en esta categoría.
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -300,25 +338,23 @@ const POSHome = () => {
       )}
 
       {showCerrarCaja && (
-  <div className="absolute inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
-    <CerrarCaja 
-      ventas={{ efectivo: 200000, tarjeta: 150000, nequi: 50000 }} 
-      onClose={() => setShowCerrarCaja(false)} 
-    />
-  </div>
-  
-)}
-    <ConsultaFacturas open={showFacturas} onClose={() => setShowFacturas(false)} />
-    <ConsultaProductos open={showInventario} onClose={() => setShowInventario(false)} />
-    <Clientes open={showClientes} onClose={() => setShowClientes(false)} />
+        <div className="absolute inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
+          <CerrarCaja 
+            ventas={{ efectivo: 200000, tarjeta: 150000, nequi: 50000 }} 
+            onClose={() => setShowCerrarCaja(false)} 
+          />
+        </div>
+      )}
+      <ConsultaFacturas open={showFacturas} onClose={() => setShowFacturas(false)} />
+      <ConsultaProductos open={showInventario} onClose={() => setShowInventario(false)} />
+      <Clientes open={showClientes} onClose={() => setShowClientes(false)} />
 
-        {/* Modal Abrir Caja */}
+      {/* Modal Abrir Caja */}
       <AbrirCaja
         open={showAbrirCaja}
         onClose={() => setShowAbrirCaja(false)}
         onConfirm={(payload) => {
           console.log("Caja abierta:", payload);
-          // aquí podrías disparar un fetch a tu backend si lo deseas
         }}
       />
     </div>

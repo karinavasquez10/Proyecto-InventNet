@@ -1,15 +1,15 @@
-import express from 'express';
+import { Router } from "express";
 import pool from '../config/database.js';
 
-const router = express.Router();
+const router = Router();
 
 // Obtener todos los productos
 router.get('/productos', async (req, res) => {
   try {
     const [rows] = await pool.query(`
-      SELECT p.id_producto, p.nombre_producto, p.precio, p.stock, c.nombre_categoria
+      SELECT p.id_producto, p.nombre, p.precio_venta, p.stock_actual, c.id_categoria
       FROM productos p
-      INNER JOIN categorias c ON p.id_categoria_fk = c.id_categoria
+      INNER JOIN categorias c ON p.id_categoria = c.id_categoria
     `);
     res.json(rows);
   } catch (error) {
