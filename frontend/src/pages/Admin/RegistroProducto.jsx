@@ -3,7 +3,7 @@ import React from "react";
 
 export default function RegistroProductos() {
   return (
-    <div className="w-full px-4 sm:px-20 max-w-[calc(200%-16rem)]">
+    <div className="w-full px-4 sm:px-40 max-w-[calc(200%-16rem)]">
       <h1 className="text-lg sm:text-xl md:text-2xl font-bold mb-6 text-slate-700">
         Registro de Productos Sede
       </h1>

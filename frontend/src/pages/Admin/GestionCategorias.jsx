@@ -1,7 +1,12 @@
-// src/pages/GestionCategorias.jsx
-import React from "react";
+import React, { useState } from "react";
+import ModalAgregarCategoria from "../Admin/AgregarCategoria"; 
+import ModalEditarCategoria from "../Admin/EditarCategoria";
 
 export default function GestionCategorias() {
+  const [mostrarModalAgregar, setMostrarModalAgregar] = useState(false);
+  const [mostrarModalEditar, setMostrarModalEditar] = useState(false);
+  const [categoriaSeleccionada, setCategoriaSeleccionada] = useState(null);
+
   const categorias = [
     {
       id: 1,
@@ -37,19 +42,25 @@ export default function GestionCategorias() {
 
   return (
     <div className="p-6">
+      {/* ===== Título ===== */}
       <h1 className="text-xl font-bold mb-4">Gestión de Categorías</h1>
 
-      {/* Barra de acciones */}
-      <div className="flex justify-between items-center mb-4 flex-wrap gap-2">
+      {/* ===== Barra de acciones ===== */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
         <p className="text-sm text-slate-600">
           Recuerde que las categorías son las mismas para todas las sedes
         </p>
-        <button className="bg-orange-500 hover:bg-orange-600 text-white px-3 py-1 rounded text-sm">
-          + NUEVA CATEGORÍA
+
+        {/* Botón Nueva Categoría */}
+        <button
+          onClick={() => setMostrarModalAgregar(true)}
+          className="flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-md shadow text-sm font-medium transition-all duration-200 active:scale-95"
+        >
+          <span className="text-lg font-bold">＋</span> NUEVA CATEGORÍA
         </button>
       </div>
 
-      {/* Tabla responsive */}
+      {/* ===== Tabla responsive ===== */}
       <div className="overflow-x-auto bg-white rounded shadow">
         <table className="min-w-full text-sm">
           <thead className="bg-slate-100 text-slate-600">
@@ -72,7 +83,7 @@ export default function GestionCategorias() {
           </thead>
           <tbody className="divide-y">
             {categorias.map((cat) => (
-              <tr key={cat.id} className="hover:bg-slate-50">
+              <tr key={cat.id} className="hover:bg-slate-50 transition">
                 <td className="px-4 py-2">{cat.nombre}</td>
                 <td className="px-4 py-2 hidden sm:table-cell">
                   {cat.posicion}
@@ -101,10 +112,16 @@ export default function GestionCategorias() {
                   <input type="checkbox" defaultChecked={cat.inactivar} />
                 </td>
                 <td className="px-4 py-2 flex justify-center gap-2">
-                  <button className="bg-blue-500 hover:bg-blue-600 text-white px-2 py-1 rounded text-xs">
+                  <button
+                    onClick={() => {
+                      setCategoriaSeleccionada(cat);
+                      setMostrarModalEditar(true);
+                    }}
+                    className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-xs"
+                  >
                     Editar
                   </button>
-                  <button className="bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded text-xs">
+                  <button className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-xs">
                     Eliminar
                   </button>
                 </td>
@@ -113,6 +130,19 @@ export default function GestionCategorias() {
           </tbody>
         </table>
       </div>
+
+      {/* ===== Modal de Agregar Categoría ===== */}
+      <ModalAgregarCategoria
+        visible={mostrarModalAgregar}
+        onClose={() => setMostrarModalAgregar(false)}
+      />
+
+      {/* ===== Modal de Editar Categoría ===== */}
+      <ModalEditarCategoria
+        visible={mostrarModalEditar}
+        onClose={() => setMostrarModalEditar(false)}
+        categoria={categoriaSeleccionada}
+      />
     </div>
   );
 }

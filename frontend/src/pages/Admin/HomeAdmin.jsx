@@ -11,8 +11,8 @@ export default function HomeAdmin() {
   label: "Productos",
   children: [
      { name: "Gestion de Categorias", path: "GestionCategorias" },
-    "Cargue masivo",
-    "Productos recogidos",
+     { name: "Cargue Masivo de Productos", path: "CargueMasivo" },
+     { name: "Productos Recogidos", path: "ProductosRecogidos" },
     "Compras",
     "Lista de precios",
     "Productos por calibrar",
@@ -26,15 +26,29 @@ export default function HomeAdmin() {
       children: [
        { name: "Consultar Ventas", path: "ConsultarVentas" },
        { name: "Cierres de Caja", path: "CierresCaja" },
-        "Cotizaciones",
+       { name: "Cotizaciones", path: "Cotizaciones" },
         "Registro de Ventas",
       ],
     },
   
 
-    { label: "Materias primas", children: ["Entradas", "Salidas", "Kardex"] },
+    { label: "Materias primas",
+     children: [
+     { name: "Entradas", path: "Entradas" },
+     { name: "Salidas", path: "Salidas" },
+    
+    ] },
+
+
     { label: "Bodegas", children: ["Inventario", "Movimientos"] },
-    { label: "Gestión sedes", children: ["Sede principal", "Sucursales"] },
+
+
+    { label: "Gestión sedes",
+     children: [
+     { name: "Sede Principal", path: "SedePrincipal" },
+    ] },
+
+
 
     { label: "Usuarios",
      children: [
@@ -50,6 +64,15 @@ export default function HomeAdmin() {
         { name: "Indicadores", path: "Indicadores" },
       ],
     },
+
+     {
+      label: "Proveedores",
+      children: [
+        { name: "Gestión de Proveedores", path: "GestionProveedores" },
+       
+      ],
+    },
+
   ];
 
   // ✅ Detecta si estás en /HomeAdmin (dashboard) o en un submódulo

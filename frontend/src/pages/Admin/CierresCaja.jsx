@@ -3,7 +3,7 @@ import React from "react";
 
 export default function CierresCaja() {
   return (
-    <div className="p-4 sm:p-1 w-full max-w-[calc(150%-16rem)] mx-auto">
+    <div className="p-4 sm:p-1 w-full max-w-[calc(150%-16rem)]">
       <h1 className="text-xl sm:text-2xl font-bold mb-6 text-slate-1000">
         Consultas de Cierres de Caja
       </h1>
