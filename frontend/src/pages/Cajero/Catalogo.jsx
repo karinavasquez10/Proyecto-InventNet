@@ -1,7 +1,30 @@
-// src/pages/Catalogo.jsx
 import React, { useState, useEffect } from "react";
+import { X } from "lucide-react";
 
+/* =============== Hook modo oscuro sincronizado =============== */
+function useSystemTheme() {
+  const [theme, setTheme] = useState(
+    document.documentElement.classList.contains("dark") ? "dark" : "light"
+  );
+
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      const isDark = document.documentElement.classList.contains("dark");
+      setTheme(isDark ? "dark" : "light");
+    });
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class"],
+    });
+    return () => observer.disconnect();
+  }, []);
+
+  return theme;
+}
+
+/* =============== Catálogo principal =============== */
 const Catalogo = ({ onClose }) => {
+  const theme = useSystemTheme();
   const [categories, setCategories] = useState([]);
   const [products, setProducts] = useState([]);
   const [activeCategory, setActiveCategory] = useState(null);
@@ -27,97 +50,164 @@ const Catalogo = ({ onClose }) => {
         const categoriesData = await categoryResponse.json();
         const productsData = await productResponse.json();
 
-        // Formatear categorías
-        const formattedCategories = categoriesData.map((cat) => ({
-          id: cat.id_categoria,
-          nombre: cat.nombre,
-        }));
-        setCategories(formattedCategories);
+        setCategories(
+          categoriesData.map((cat) => ({
+            id: cat.id_categoria,
+            nombre: cat.nombre,
+          }))
+        );
 
-        // Formatear productos
-        const formattedProducts = productsData.map((product) => ({
-          id: product.id_producto,
-          nombre: product.nombre,
-          precio: product.precio_venta,
-          categoria: product.id_categoria,
-          stock: product.stock_actual,
-          image: "🛍️",
-        }));
-        setProducts(formattedProducts);
-      } catch (error) {
-        setError(error.message);
+        setProducts(
+          productsData.map((p) => ({
+            id: p.id_producto,
+            nombre: p.nombre,
+            precio: p.precio_venta,
+            categoria: p.id_categoria,
+            stock: p.stock_actual,
+            image: "🛍️",
+          }))
+        );
+      } catch (err) {
+        setError(err.message);
       } finally {
         setLoading(false);
       }
     };
-
     fetchData();
   }, []);
 
-  // Filtrar productos por categoría activa
+  // Filtrar productos
   const filteredProducts = activeCategory
-    ? products.filter((product) => product.categoria === activeCategory.id)
+    ? products.filter((p) => p.categoria === activeCategory.id)
     : [];
 
+  /* =================== UI =================== */
   return (
-    <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
-      <div className="bg-gray-950 text-white rounded-2xl shadow-lg w-[90%] max-w-6xl h-[85vh] flex overflow-hidden">
-        {/* Categorías */}
-        <div className="w-1/5 bg-gray-900 p-3 flex flex-col gap-2 overflow-y-auto">
-          {categories.map((cat) => (
-            <button
-              key={cat.id}
-              onClick={() => setActiveCategory(cat)}
-              className={`p-3 rounded-lg font-semibold ${
-                activeCategory?.id === cat.id
-                  ? "bg-orange-600"
-                  : "bg-gray-800 hover:bg-gray-700"
-              }`}
-            >
-              {cat.nombre}
-            </button>
-          ))}
-        </div>
+    <div
+      className="fixed inset-0 z-[60] flex items-center justify-center"
+      onClick={onClose}
+    >
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
 
-        {/* Productos */}
-        <div className="flex-1 bg-gray-800 p-5 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+      <div
+        className={`relative w-[95vw] max-w-6xl h-[88vh] rounded-2xl shadow-2xl overflow-hidden flex border transition-colors duration-300
+          ${theme === "dark"
+            ? "bg-slate-900 border-slate-800 text-slate-100"
+            : "bg-white border-slate-200 text-slate-800"}
+        `}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Panel lateral de categorías */}
+        <aside
+          className={`w-1/5 p-4 overflow-y-auto transition-colors duration-300 border-r
+            ${theme === "dark"
+              ? "bg-slate-950 border-slate-800"
+              : "bg-orange-50 border-slate-200"}
+          `}
+        >
+          <h2
+            className={`text-sm font-semibold mb-3 ${
+              theme === "dark" ? "text-slate-300" : "text-slate-800"
+            }`}
+          >
+            Categorías
+          </h2>
+          <div className="flex flex-col gap-2">
+            {categories.map((cat) => (
+              <button
+                key={cat.id}
+                onClick={() => setActiveCategory(cat)}
+                className={`p-3 rounded-lg font-medium text-sm text-left transition-all
+                  ${
+                    activeCategory?.id === cat.id
+                      ? theme === "dark"
+                        ? "bg-gradient-to-r from-orange-500 to-fuchsia-500 text-white shadow-md"
+                        : "bg-gradient-to-r from-orange-400 to-pink-400 text-white shadow-md"
+                      : theme === "dark"
+                      ? "bg-slate-800 hover:bg-slate-700 text-slate-200"
+                      : "bg-white hover:bg-orange-100 border border-slate-200"
+                  }`}
+              >
+                {cat.nombre}
+              </button>
+            ))}
+          </div>
+        </aside>
+
+        {/* Sección de productos */}
+        <main
+          className={`flex-1 overflow-y-auto p-6 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5 transition-colors duration-300
+            ${
+              theme === "dark"
+                ? "bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950"
+                : "bg-gradient-to-br from-orange-50 via-white to-rose-50"
+            }`}
+        >
           {loading && (
-            <div className="col-span-full text-center text-gray-400 py-10 content-center">
-              <div className="text-2xl animate-pulse">Cargando productos...</div>
+            <div className="col-span-full text-center py-10 text-slate-400">
+              <div className="text-lg animate-pulse">Cargando productos...</div>
             </div>
           )}
+
           {error && (
-            <div className="col-span-full text-center text-red-500 py-10">
-              <div className="text-lg">{error}</div>
+            <div className="col-span-full text-center py-10 text-red-500">
+              {error}
             </div>
           )}
+
+          {!loading && !error && filteredProducts.length === 0 && (
+            <div className="col-span-full text-center py-10 text-slate-400">
+              No hay productos disponibles en esta categoría.
+            </div>
+          )}
+
           {filteredProducts.map((prod) => (
             <div
               key={prod.id}
-              className="bg-gray-900 p-4 rounded-xl shadow hover:shadow-lg cursor-pointer flex flex-col items-center"
+              className={`p-4 rounded-xl shadow-sm flex flex-col items-center text-center cursor-pointer transition-all duration-200 border
+                ${
+                  theme === "dark"
+                    ? "bg-slate-800 border-slate-700 hover:bg-slate-700"
+                    : "bg-white border-slate-200 hover:bg-orange-50 hover:shadow-md"
+                }`}
             >
-              <div className="w-20 h-20 bg-gray-700 rounded-full mb-3" />
-              <h3 className="font-bold text-center">{prod.nombre}</h3>
-              <span className="mt-2 bg-orange-600 px-2 py-1 rounded text-sm font-bold">
+              <div
+                className={`w-20 h-20 rounded-full flex items-center justify-center text-3xl mb-3
+                  ${
+                    theme === "dark"
+                      ? "bg-slate-700"
+                      : "bg-gradient-to-r from-orange-100 to-pink-100"
+                  }`}
+              >
+                {prod.image}
+              </div>
+              <h3 className="font-semibold truncate">{prod.nombre}</h3>
+              <span
+                className={`mt-2 px-2 py-1 rounded text-sm font-bold ${
+                  theme === "dark"
+                    ? "bg-orange-600 text-white"
+                    : "bg-gradient-to-r from-orange-400 to-fuchsia-400 text-white"
+                }`}
+              >
                 ${prod.precio.toLocaleString()}
               </span>
             </div>
           ))}
-          {filteredProducts.length === 0 && !loading && (
-            <div className="col-span-full text-center text-gray-400 py-10 content-center">
-              <div className="text-lg">No hay productos disponibles en esta categoría.</div>
-            </div>
-          )}
-        </div>
-      </div>
+        </main>
 
-      {/* Botón cerrar */}
-      <button
-        onClick={onClose}
-        className="absolute top-4 right-4 bg-red-600 hover:bg-red-700 px-3 py-1 rounded-lg font-bold"
-      >
-        X
-      </button>
+        {/* Botón cerrar */}
+        <button
+          onClick={onClose}
+          className={`absolute top-4 right-4 p-2 rounded-lg transition
+            ${
+              theme === "dark"
+                ? "bg-red-600 hover:bg-red-700 text-white"
+                : "bg-red-500 hover:bg-red-600 text-white shadow-md"
+            }`}
+        >
+          <X size={18} />
+        </button>
+      </div>
     </div>
   );
 };

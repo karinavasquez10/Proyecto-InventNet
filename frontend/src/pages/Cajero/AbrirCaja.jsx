@@ -1,6 +1,27 @@
-// src/pages/AbrirCajaModal.jsx
 import React from "react";
 import { createPortal } from "react-dom";
+import { X } from "lucide-react";
+
+/* =============== Hook para sincronizar modo oscuro global =============== */
+function useSystemTheme() {
+  const [theme, setTheme] = React.useState(
+    document.documentElement.classList.contains("dark") ? "dark" : "light"
+  );
+
+  React.useEffect(() => {
+    const observer = new MutationObserver(() => {
+      const isDark = document.documentElement.classList.contains("dark");
+      setTheme(isDark ? "dark" : "light");
+    });
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class"],
+    });
+    return () => observer.disconnect();
+  }, []);
+
+  return theme;
+}
 
 /* ====================== Modal público ====================== */
 function AbrirCaja({ open, onClose, onConfirm }) {
@@ -28,9 +49,10 @@ function ModalShell({ children, onClose }) {
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
       <div
-        className="relative w-[95vw] max-w-[900px] h-[88vh] bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden grid grid-rows-[auto,1fr]"
+        className="relative w-[95vw] max-w-[900px] h-[88vh] rounded-2xl shadow-2xl overflow-hidden grid grid-rows-[auto,1fr]
+        bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 transition-colors duration-300"
         onClick={(e) => e.stopPropagation()}
       >
         {children}
@@ -61,15 +83,14 @@ const DENOMS = [
 ];
 
 function AbrirCajaBody({ onClose, onConfirm }) {
+  const theme = useSystemTheme(); // sincroniza con modo global
   const now = new Date();
   const [cajero, setCajero] = React.useState("");
   const [sede, setSede] = React.useState("Principal");
   const [caja, setCaja] = React.useState("Caja 1");
   const [base, setBase] = React.useState(0);
   const [obs, setObs] = React.useState("");
-  const [denoms, setDenoms] = React.useState(
-    DENOMS.map((d) => ({ ...d, qty: 0 }))
-  );
+  const [denoms, setDenoms] = React.useState(DENOMS.map((d) => ({ ...d, qty: 0 })));
 
   const totalDesglose = denoms.reduce((s, d) => s + d.qty * d.value, 0);
   const mismatch = base > 0 && totalDesglose > 0 && totalDesglose !== Number(base);
@@ -97,7 +118,6 @@ function AbrirCajaBody({ onClose, onConfirm }) {
       estado: "ABIERTA",
     };
 
-    // Persistir simulación
     try {
       localStorage.setItem("caja_abierta", JSON.stringify(payload));
     } catch {}
@@ -108,11 +128,17 @@ function AbrirCajaBody({ onClose, onConfirm }) {
 
   return (
     <>
-      {/* header */}
-      <div className="h-14 px-5 bg-white border-b flex items-center justify-between">
+      {/* Header */}
+      <div
+        className={`h-14 px-5 flex items-center justify-between text-white transition-colors duration-300 ${
+          theme === "dark"
+            ? "bg-slate-800 border-b border-slate-700"
+            : "bg-gradient-to-r from-orange-500 via-rose-500 to-fuchsia-500"
+        }`}
+      >
         <div>
-          <h2 className="text-base font-semibold">Abrir caja</h2>
-          <p className="text-[11px] text-slate-500">
+          <h2 className="text-base font-semibold">Abrir Caja</h2>
+          <p className="text-[11px] opacity-90">
             {now.toLocaleDateString("es-CO", {
               day: "2-digit",
               month: "short",
@@ -121,29 +147,37 @@ function AbrirCajaBody({ onClose, onConfirm }) {
             {now.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })}
           </p>
         </div>
-        <button onClick={onClose} className="rounded-lg p-2 hover:bg-slate-100" title="Cerrar">
-          ✕
+        <button
+          onClick={onClose}
+          className="p-2 rounded-md hover:bg-white/20 transition"
+          title="Cerrar"
+        >
+          <X size={18} />
         </button>
       </div>
 
-      {/* body */}
-      <div className="overflow-y-auto p-5 space-y-6">
+      {/* Body */}
+      <div
+        className={`overflow-y-auto p-5 space-y-6 transition-colors duration-300 ${
+          theme === "dark"
+            ? "bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-100"
+            : "bg-gradient-to-br from-orange-50 via-white to-rose-50 text-slate-700"
+        }`}
+      >
         {/* Datos generales */}
-        <section className="bg-white border border-slate-200 rounded-xl p-4">
+        <section className="rounded-xl p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <Label>Cajero</Label>
+            <Field label="Cajero">
               <input
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                className="input"
                 placeholder="Nombre del cajero"
                 value={cajero}
                 onChange={(e) => setCajero(e.target.value)}
               />
-            </div>
-            <div>
-              <Label>Sede</Label>
+            </Field>
+            <Field label="Sede">
               <select
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white"
+                className="input bg-white dark:bg-slate-800"
                 value={sede}
                 onChange={(e) => setSede(e.target.value)}
               >
@@ -151,11 +185,10 @@ function AbrirCajaBody({ onClose, onConfirm }) {
                   <option key={s}>{s}</option>
                 ))}
               </select>
-            </div>
-            <div>
-              <Label>Número de caja</Label>
+            </Field>
+            <Field label="Número de Caja">
               <select
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white"
+                className="input bg-white dark:bg-slate-800"
                 value={caja}
                 onChange={(e) => setCaja(e.target.value)}
               >
@@ -163,12 +196,12 @@ function AbrirCajaBody({ onClose, onConfirm }) {
                   <option key={c}>{c}</option>
                 ))}
               </select>
-            </div>
+            </Field>
           </div>
         </section>
 
         {/* Base y desglose */}
-        <section className="bg-white border border-slate-200 rounded-xl p-4">
+        <section className="rounded-xl p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
             <div className="md:col-span-2">
               <Label>Plata base (efectivo inicial)</Label>
@@ -176,45 +209,47 @@ function AbrirCajaBody({ onClose, onConfirm }) {
                 <input
                   type="number"
                   min={0}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                  className="input"
                   placeholder="0"
                   value={base}
                   onChange={(e) => setBase(e.target.value)}
                 />
-                <span className="self-center text-sm text-slate-500 min-w-[120px]">
+                <span className="self-center text-sm text-slate-500 dark:text-slate-400 min-w-[120px]">
                   {money(base)}
                 </span>
               </div>
               {mismatch && (
                 <p className="text-xs text-amber-700 mt-1">
-                  Aviso: el <b>desglose</b> suma {money(totalDesglose)}, distinto de la base.
+                  ⚠️ El <b>desglose</b> suma {money(totalDesglose)}, distinto de la base.
                 </p>
               )}
             </div>
             <div className="md:text-right">
-              <button
-                onClick={setFromDesglose}
-                className="px-3 py-2 rounded-lg text-sm bg-sky-600 text-white hover:bg-sky-700"
-              >
+              <GradientBtn onClick={setFromDesglose}>
                 Usar suma del desglose
-              </button>
+              </GradientBtn>
             </div>
           </div>
 
-          {/* Desglose por denominaciones */}
+          {/* Desglose */}
           <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
             {denoms.map((d, idx) => (
-              <div key={d.value} className="border rounded-lg px-3 py-2">
-                <div className="text-xs text-slate-600">{d.label}</div>
+              <div
+                key={d.value}
+                className="border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 bg-white dark:bg-slate-800"
+              >
+                <div className="text-xs text-slate-600 dark:text-slate-300">
+                  {d.label}
+                </div>
                 <div className="mt-1 flex items-center gap-2">
                   <input
                     type="number"
                     min={0}
                     value={d.qty}
                     onChange={(e) => setQty(idx, e.target.value)}
-                    className="w-20 rounded border border-slate-300 px-2 py-1 text-sm"
+                    className="w-20 rounded border border-slate-300 dark:border-slate-700 dark:bg-slate-900 px-2 py-1 text-sm text-slate-700 dark:text-slate-100"
                   />
-                  <span className="text-xs text-slate-500">
+                  <span className="text-xs text-slate-500 dark:text-slate-400">
                     = {money(d.qty * d.value)}
                   </span>
                 </div>
@@ -223,17 +258,21 @@ function AbrirCajaBody({ onClose, onConfirm }) {
           </div>
 
           <div className="mt-4 text-right text-sm">
-            <span className="text-slate-500 mr-2">Suma desglose:</span>
-            <span className="font-semibold">{money(totalDesglose)}</span>
+            <span className="text-slate-500 dark:text-slate-400 mr-2">
+              Suma desglose:
+            </span>
+            <span className="font-semibold text-slate-800 dark:text-white">
+              {money(totalDesglose)}
+            </span>
           </div>
         </section>
 
         {/* Observaciones */}
-        <section className="bg-white border border-slate-200 rounded-xl p-4">
+        <section className="rounded-xl p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm">
           <Label>Observaciones (opcional)</Label>
           <textarea
             rows={3}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            className="input"
             placeholder="Anota algo relevante para el inicio del turno…"
             value={obs}
             onChange={(e) => setObs(e.target.value)}
@@ -241,19 +280,11 @@ function AbrirCajaBody({ onClose, onConfirm }) {
         </section>
 
         {/* Acciones */}
-        <div className="flex items-center justify-end gap-3">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 rounded-lg text-sm border border-slate-300 hover:bg-slate-50"
-          >
+        <div className="flex items-center justify-end gap-3 pt-2">
+          <SmallBtn variant="outline" onClick={onClose}>
             Cancelar
-          </button>
-          <button
-            onClick={handleSubmit}
-            className="px-4 py-2 rounded-lg text-sm bg-emerald-600 text-white hover:bg-emerald-700"
-          >
-            Abrir caja
-          </button>
+          </SmallBtn>
+          <GradientBtn onClick={handleSubmit}>Abrir caja</GradientBtn>
         </div>
       </div>
     </>
@@ -262,8 +293,38 @@ function AbrirCajaBody({ onClose, onConfirm }) {
 
 /* ====================== UI helpers ====================== */
 function Label({ children }) {
-  return <div className="text-xs font-medium text-slate-600 mb-1">{children}</div>;
+  return <div className="text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">{children}</div>;
+}
+function Field({ label, children }) {
+  return (
+    <div>
+      <Label>{label}</Label>
+      {children}
+    </div>
+  );
+}
+function SmallBtn({ children, onClick, variant = "solid" }) {
+  const base = "px-4 py-2 rounded-lg text-sm font-medium transition";
+  const style =
+    variant === "outline"
+      ? "border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300"
+      : "bg-gradient-to-r from-orange-500 to-fuchsia-500 text-white hover:brightness-110";
+  return (
+    <button type="button" onClick={onClick} className={`${base} ${style}`}>
+      {children}
+    </button>
+  );
+}
+function GradientBtn({ children, onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-gradient-to-r from-orange-500 to-fuchsia-500 hover:brightness-110 transition"
+    >
+      {children}
+    </button>
+  );
 }
 
-/* ====================== export default al final ====================== */
+/* ====================== export default ====================== */
 export default AbrirCaja;

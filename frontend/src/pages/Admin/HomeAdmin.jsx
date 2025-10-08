@@ -93,7 +93,7 @@ export default function HomeAdmin() {
         </div>
 
         {/* menú lateral con submódulos */}
-        <nav className="py-3 px-2 overflow-y-auto bg-teal-400 h-[calc(100vh-4rem)]">
+        <nav className="py-3 px-2 overflow-y-auto bg-sky-500 h-[calc(100vh-4rem)]">
           {menuItems.map((item, idx) => (
             <div key={idx} className="mb-1">
               <button
