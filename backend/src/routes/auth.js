@@ -12,7 +12,7 @@ router.post("/login", async (req, res) => {
   try {
     // Buscar usuario en la base de datos
     const [rows] = await pool.query(
-      "SELECT id_usuario, correo, contrasena FROM usuarios WHERE correo = ? LIMIT 1",
+      "SELECT id_usuario, correo, contrasena, rol FROM usuarios WHERE correo = ? LIMIT 1",
       [email]
     );
     if (rows.length === 0) {
@@ -35,7 +35,7 @@ router.post("/login", async (req, res) => {
 
     res.json({
       token,
-      user: { id: user.id_usuario, email: user.correo },
+      user: { id: user.id_usuario, email: user.correo, rol: user.rol},
     });
   } catch (error) {
     console.error("Error en login:", error);

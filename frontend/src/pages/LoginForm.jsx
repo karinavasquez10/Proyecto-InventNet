@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import api from "../api";
 
 function LoginForm() {
@@ -8,6 +9,7 @@ function LoginForm() {
   const [remember, setRemember] = useState(true);
   const [mensaje, setMensaje] = useState("");
   const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -18,9 +20,25 @@ function LoginForm() {
       if (remember) {
         try {
           localStorage.setItem("last_email", email);
-        } catch {}
+        } catch {
+          // Ignorar errores de localStorage
+        }
       }
-      setMensaje(`✅ Bienvenido: ${res.data.user?.nombre ?? "Usuario"}`);
+      const user = res.data.user;
+
+      // Validación robusta del rol
+      const rol = (user?.rol || "").toLowerCase();
+
+      if (rol === "administrador" || rol === "admin") {
+        navigate("/HomeAdmin");
+      } else if (rol === "cajero") {
+        setMensaje(`✅ Bienvenido Cajero: ${user?.email ?? "Usuario"}`);
+        navigate("/Home");
+      } else if (rol) {
+        setMensaje(`❌ Rol de usuario no reconocido: ${user?.rol}`);
+      } else {
+        setMensaje("❌ No se pudo determinar el rol del usuario");
+      }
     } catch (error) {
       setMensaje("❌ Credenciales inválidas o error en servidor");
       console.error(error);
@@ -30,11 +48,13 @@ function LoginForm() {
   };
 
   // Cargar último correo recordado
-  useState(() => {
+  useEffect(() => {
     try {
       const last = localStorage.getItem("last_email");
       if (last) setEmail(last);
-    } catch {}
+    } catch (err) {
+      console.log(err);
+    }
   }, []);
 
   return (
