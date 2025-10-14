@@ -1,92 +1,112 @@
 import React, { useState } from "react";
+import { Building2, FileText, Truck, Ban } from "lucide-react";
 
 export default function SedePrincipal() {
   const [activeTab, setActiveTab] = useState("facturacion");
 
   return (
-    <div className="px-40">
-      <h1 className="text-xl sm:text-2xl font-bold mb-6 text-slate-800">
-        Configuración de Sede
-      </h1>
-
-      {/* ===== Información general ===== */}
-      <div className="bg-white rounded-lg shadow p-5 mb-6">
-        <h2 className="text-base sm:text-lg font-semibold text-slate-600 mb-2">
-          MERKA FRUVER FLORENCIA
-        </h2>
-        <p className="text-xs sm:text-sm text-slate-500">
-          Expiración: <span className="font-semibold text-orange-500">12 de abril de 2026</span>
-        </p>
+    <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-pink-50 px-6 sm:px-35 py-5">
+      {/* ====== Encabezado ====== */}
+      <div className="flex items-center gap-2 mb-4">
+        <div className="bg-gradient-to-r from-orange-500 to-fuchsia-500 p-2.5 rounded-lg shadow-md text-white">
+          <Building2 size={22} />
+        </div>
+        <h1 className="text-2xl font-bold text-slate-800 tracking-tight ">
+          Configuración de Sede
+        </h1>
       </div>
 
-      {/* ===== Pestañas de navegación ===== */}
-      <div className="flex flex-wrap gap-2 border-b mb-6 text-sm font-medium">
+      {/* ====== Tarjeta de información general ====== */}
+      <div className="bg-white/90 border border-orange-100 rounded-2xl shadow-md p-6 mb-8 ">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-800">
+              INVENTNET
+            </h2>
+            <p className="text-sm text-slate-500 mt-1">
+              Identificador de sede: <span className="font-medium text-slate-600">#0001</span>
+            </p>
+          </div>
+          <div className="mt-3 sm:mt-0 text-sm bg-gradient-to-r from-orange-100 to-pink-100 text-orange-700 px-3 py-1.5 rounded-md shadow-sm">
+            Expira el <span className="font-semibold text-orange-600">12 de abril de 2026</span>
+          </div>
+        </div>
+      </div>
+
+      {/* ====== Pestañas ====== */}
+      <div className="flex flex-wrap gap-2 mb-6 text-sm font-semibold">
         {[
-          { id: "facturacion", label: "Parámetros de facturación" },
-          { id: "domicilios", label: "Parámetros de domicilios" },
-          { id: "exclusion", label: "Exclusión de módulos" },
+          { id: "facturacion", label: "Parámetros de facturación", icon: <FileText size={15} /> },
+          { id: "domicilios", label: "Parámetros de domicilios", icon: <Truck size={15} /> },
+          { id: "exclusion", label: "Exclusión de módulos", icon: <Ban size={15} /> },
         ].map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`px-4 py-2 rounded-t-md border-b-2 transition-all ${
+            className={`flex items-center gap-2 px-4 py-2 rounded-t-lg border-b-4 transition-all duration-200 ${
               activeTab === tab.id
-                ? "border-sky-600 text-sky-600 bg-sky-50"
-                : "border-transparent text-slate-600 hover:text-sky-600"
+                ? "border-orange-500 text-orange-600 bg-orange-50 shadow-sm"
+                : "border-transparent text-slate-600 hover:text-orange-600 hover:bg-orange-50/50"
             }`}
           >
-            {tab.label}
+            {tab.icon} {tab.label}
           </button>
         ))}
       </div>
 
-      {/* ===== Contenido dinámico ===== */}
-      <div className="bg-white rounded-lg shadow p-6">
+      {/* ====== Contenido dinámico ====== */}
+      <div className="bg-white/90 border border-orange-100 rounded-2xl shadow-md p-8">
         {activeTab === "facturacion" && (
           <div>
-            <h2 className="text-base sm:text-lg font-semibold mb-4 text-slate-700">
+            <h2 className="text-lg font-semibold text-slate-700 mb-5">
               Personalización de Factura
             </h2>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Campos principales */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div>
-                <label className="block text-sm font-medium">NIT</label>
+                <label className="block text-sm font-medium text-slate-600 mb-1">NIT</label>
                 <input
                   type="text"
                   placeholder="1117232430"
-                  className="w-full border rounded px-3 py-2 text-sm"
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-orange-200 focus:outline-none"
                 />
               </div>
+
               <div>
-                <label className="block text-sm font-medium">Régimen</label>
-                <select className="w-full border rounded px-3 py-2 text-sm">
+                <label className="block text-sm font-medium text-slate-600 mb-1">Régimen</label>
+                <select className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-orange-200 focus:outline-none">
                   <option>Simplificado</option>
                   <option>Común</option>
                   <option>Responsable de IVA</option>
                 </select>
               </div>
+
               <div>
-                <label className="block text-sm font-medium">Leyenda Régimen</label>
+                <label className="block text-sm font-medium text-slate-600 mb-1">
+                  Leyenda Régimen
+                </label>
                 <input
                   type="text"
                   placeholder="Ej: Responsable de IVA"
-                  className="w-full border rounded px-3 py-2 text-sm"
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-orange-200 focus:outline-none"
                 />
               </div>
             </div>
 
-            <div className="mt-6 space-y-3">
-              <button className="w-full sm:w-auto bg-sky-600 hover:bg-sky-700 text-white px-4 py-2 rounded text-sm">
+            {/* Botones secundarios */}
+            <div className="mt-8 flex flex-wrap gap-3">
+              <button className="bg-gradient-to-r from-sky-500 to-sky-600 hover:brightness-110 text-white px-4 py-2.5 rounded-lg text-sm shadow-md transition">
                 Configurar Logo y Apariencia
               </button>
-              <button className="w-full sm:w-auto bg-slate-500 hover:bg-slate-600 text-white px-4 py-2 rounded text-sm ml-0 sm:ml-3">
+              <button className="bg-gradient-to-r from-slate-400 to-slate-500 hover:brightness-110 text-white px-4 py-2.5 rounded-lg text-sm shadow-md transition">
                 Condiciones y Observaciones
               </button>
             </div>
 
-            <div className="mt-6 flex justify-end">
-              <button className="bg-green-600 hover:bg-green-700 text-white px-5 py-2 rounded text-sm">
-                Modificar
+            <div className="mt-8 flex justify-end">
+              <button className="bg-gradient-to-r from-green-500 to-emerald-500 hover:brightness-110 text-white px-6 py-2.5 rounded-lg text-sm shadow-md transition">
+                Guardar Cambios
               </button>
             </div>
           </div>
@@ -94,32 +114,37 @@ export default function SedePrincipal() {
 
         {activeTab === "domicilios" && (
           <div>
-            <h2 className="text-base sm:text-lg font-semibold mb-4 text-slate-700">
+            <h2 className="text-lg font-semibold text-slate-700 mb-5">
               Parámetros de Domicilios
             </h2>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <label className="block text-sm font-medium">Tarifa de domicilio</label>
+                <label className="block text-sm font-medium text-slate-600 mb-1">
+                  Tarifa de domicilio
+                </label>
                 <input
                   type="number"
                   placeholder="$0.00"
-                  className="w-full border rounded px-3 py-2 text-sm"
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-orange-200 focus:outline-none"
                 />
               </div>
+
               <div>
-                <label className="block text-sm font-medium">Tiempo estimado (min)</label>
+                <label className="block text-sm font-medium text-slate-600 mb-1">
+                  Tiempo estimado (min)
+                </label>
                 <input
                   type="number"
                   placeholder="30"
-                  className="w-full border rounded px-3 py-2 text-sm"
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-orange-200 focus:outline-none"
                 />
               </div>
             </div>
 
-            <div className="mt-6 flex justify-end">
-              <button className="bg-green-600 hover:bg-green-700 text-white px-5 py-2 rounded text-sm">
-                Guardar cambios
+            <div className="mt-8 flex justify-end">
+              <button className="bg-gradient-to-r from-green-500 to-emerald-500 hover:brightness-110 text-white px-6 py-2.5 rounded-lg text-sm shadow-md transition">
+                Guardar Cambios
               </button>
             </div>
           </div>
@@ -127,15 +152,15 @@ export default function SedePrincipal() {
 
         {activeTab === "exclusion" && (
           <div>
-            <h2 className="text-base sm:text-lg font-semibold mb-4 text-slate-700">
+            <h2 className="text-lg font-semibold text-slate-700 mb-5">
               Exclusión de módulos
             </h2>
 
-            <p className="text-sm text-slate-500 mb-4">
+            <p className="text-sm text-slate-500 mb-5">
               Selecciona los módulos que no deseas incluir en esta sede:
             </p>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               {[
                 "Productos",
                 "Ventas",
@@ -145,16 +170,19 @@ export default function SedePrincipal() {
                 "Bodegas",
                 "Utensilios",
               ].map((mod) => (
-                <label key={mod} className="flex items-center gap-2 text-sm">
-                  <input type="checkbox" className="h-4 w-4" />
+                <label
+                  key={mod}
+                  className="flex items-center gap-2 text-sm bg-orange-50 border border-orange-100 rounded-md px-3 py-2 hover:bg-orange-100 transition"
+                >
+                  <input type="checkbox" className="h-4 w-4 text-orange-500" />
                   {mod}
                 </label>
               ))}
             </div>
 
-            <div className="mt-6 flex justify-end">
-              <button className="bg-green-600 hover:bg-green-700 text-white px-5 py-2 rounded text-sm">
-                Guardar configuración
+            <div className="mt-8 flex justify-end">
+              <button className="bg-gradient-to-r from-green-500 to-emerald-500 hover:brightness-110 text-white px-6 py-2.5 rounded-lg text-sm shadow-md transition">
+                Guardar Configuración
               </button>
             </div>
           </div>

@@ -1,16 +1,16 @@
 import React from "react";
-import { Filter, PlusCircle, ClipboardList } from "lucide-react";
+import { Filter, ArrowUpCircle, ClipboardList } from "lucide-react";
 
-export default function Entradas() {
+export default function Salidas() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-pink-50 px-6 sm:px-12 py-10 rounded-xl">
       {/* ===== Header ===== */}
       <div className="flex items-center gap-3 mb-8">
         <div className="bg-gradient-to-r from-orange-500 to-fuchsia-500 p-2.5 rounded-lg shadow-md text-white">
-          <ClipboardList size={22} />
+          <ArrowUpCircle size={22} />
         </div>
         <h1 className="text-3xl font-bold text-slate-800 tracking-tight">
-          Control de Entradas de Materias Primas
+          Control de Salidas de Materias Primas
         </h1>
       </div>
 
@@ -26,12 +26,12 @@ export default function Entradas() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <input
             type="text"
-            placeholder="Buscar proveedor..."
+            placeholder="Buscar producto..."
             className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-orange-200 focus:outline-none"
           />
           <input
             type="text"
-            placeholder="Buscar producto..."
+            placeholder="Buscar responsable..."
             className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-orange-200 focus:outline-none"
           />
           <input
@@ -54,39 +54,30 @@ export default function Entradas() {
         </div>
       </div>
 
-      {/* ===== Registro de nueva entrada ===== */}
+      {/* ===== Registro de nueva salida ===== */}
       <div className="bg-white/90 border border-orange-100 rounded-2xl shadow-md p-6 mb-8">
         <div className="flex items-center gap-2 mb-6">
-          <PlusCircle size={18} className="text-green-500" />
+          <ArrowUpCircle size={18} className="text-green-500" />
           <h2 className="text-lg font-semibold text-slate-700">
-            Registrar nueva entrada
+            Registrar nueva salida
           </h2>
         </div>
 
         <form className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div>
             <label className="block text-sm font-medium text-slate-600 mb-1">
-              Proveedor
-            </label>
-            <input
-              type="text"
-              placeholder="Nombre proveedor"
-              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-orange-200 focus:outline-none"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-600 mb-1">
               Producto
             </label>
             <input
               type="text"
-              placeholder="Producto"
+              placeholder="Nombre del producto"
               className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-orange-200 focus:outline-none"
             />
           </div>
+
           <div>
             <label className="block text-sm font-medium text-slate-600 mb-1">
-              Cantidad
+              Cantidad retirada
             </label>
             <input
               type="number"
@@ -104,15 +95,28 @@ export default function Entradas() {
               className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-orange-200 focus:outline-none"
             />
           </div>
+
           <div>
             <label className="block text-sm font-medium text-slate-600 mb-1">
-              Precio Unitario
+              Responsable
             </label>
             <input
-              type="number"
-              placeholder="$0.00"
+              type="text"
+              placeholder="Nombre del responsable"
               className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-orange-200 focus:outline-none"
             />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-600 mb-1">
+              Motivo de salida
+            </label>
+            <select className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-orange-200 focus:outline-none">
+              <option>Producción</option>
+              <option>Merma o daño</option>
+              <option>Traslado de bodega</option>
+              <option>Otro</option>
+            </select>
           </div>
 
           <div className="md:col-span-3">
@@ -137,16 +141,16 @@ export default function Entradas() {
               type="submit"
               className="bg-gradient-to-r from-green-500 to-emerald-500 hover:brightness-110 text-white px-5 py-2.5 rounded-lg text-sm shadow-md transition"
             >
-              Registrar
+              Registrar salida
             </button>
           </div>
         </form>
       </div>
 
-      {/* ===== Historial ===== */}
+      {/* ===== Historial de salidas ===== */}
       <div className="bg-white/90 border border-orange-100 rounded-2xl shadow-md p-6 overflow-x-auto">
         <h2 className="text-lg font-semibold mb-5 text-slate-700">
-          Historial de Entradas
+          Historial de Salidas
         </h2>
 
         <table className="min-w-full text-sm border border-slate-200 rounded-lg overflow-hidden">
@@ -154,11 +158,11 @@ export default function Entradas() {
             <tr>
               {[
                 "Fecha",
-                "Proveedor",
                 "Producto",
                 "Cantidad",
-                "Precio Unitario",
-                "Total",
+                "Responsable",
+                "Motivo",
+                "Observaciones",
                 "Acciones",
               ].map((header) => (
                 <th
@@ -172,12 +176,12 @@ export default function Entradas() {
           </thead>
           <tbody>
             <tr className="border-b border-orange-100 hover:bg-orange-50 transition">
-              <td className="px-4 py-2">2025-09-20</td>
-              <td className="px-4 py-2">Proveedor Ejemplo</td>
-              <td className="px-4 py-2">Papa Pastusa KL</td>
-              <td className="px-4 py-2">100</td>
-              <td className="px-4 py-2">$2.500</td>
-              <td className="px-4 py-2">$250.000</td>
+              <td className="px-4 py-2">2025-10-12</td>
+              <td className="px-4 py-2">Harina de trigo</td>
+              <td className="px-4 py-2">20 kg</td>
+              <td className="px-4 py-2">Karen Hoyos</td>
+              <td className="px-4 py-2">Producción</td>
+              <td className="px-4 py-2">Panadería principal</td>
               <td className="px-4 py-2">
                 <div className="flex gap-2">
                   <button className="bg-yellow-400 hover:bg-yellow-500 text-white px-3 py-1 rounded text-xs shadow">

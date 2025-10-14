@@ -65,10 +65,10 @@ function LoginForm() {
           {/* Branding */}
           <div className="flex items-center gap-3 mb-8">
             <div className="h-10 w-10 rounded-xl bg-orange-500 text-white font-bold grid place-items-center">
-              MI
+              IN
             </div>
             <div>
-              <div className="font-semibold leading-tight">Mis Inventarios</div>
+              <div className="font-semibold leading-tight">InventNet</div>
               <div className="text-xs text-slate-500 -mt-0.5">Controla tu negocio fácil</div>
             </div>
           </div>

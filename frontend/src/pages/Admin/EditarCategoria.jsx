@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { X, Upload, Image as ImageIcon } from "lucide-react";
 
 export default function EditarCategoria({ visible, onClose, categoria }) {
   const [nombre, setNombre] = useState("");
@@ -44,60 +45,61 @@ export default function EditarCategoria({ visible, onClose, categoria }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-40 flex justify-center items-center z-50 px-3">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl p-6 relative overflow-y-auto max-h-[90vh] transition-all duration-300">
-        {/* ===== Cerrar ===== */}
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex justify-center items-center z-50 px-3">
+      <div className="relative w-full max-w-3xl bg-white/90 backdrop-blur-lg border border-orange-100 rounded-2xl shadow-xl p-8 overflow-y-auto max-h-[90vh] transition-all duration-300">
+        {/* ===== Botón Cerrar ===== */}
         <button
           onClick={onClose}
-          className="absolute top-3 right-3 text-slate-500 hover:text-red-500 text-lg"
+          className="absolute top-3 right-3 p-2 rounded-full bg-white/70 hover:bg-rose-100 text-slate-600 hover:text-red-600 shadow-sm transition"
         >
-          ✕
+          <X size={18} />
         </button>
 
         {/* ===== Encabezado ===== */}
-        <div className="bg-gradient-to-r from-sky-600 to-sky-400 rounded-lg text-white py-3 px-5 mb-5 shadow">
-          <h2 className="text-xl sm:text-2xl font-semibold">
-            Editar Categoría
-          </h2>
+        <div className="bg-gradient-to-r from-orange-500 to-fuchsia-500 rounded-xl text-white py-4 px-5 mb-6 shadow-md text-center">
+          <h2 className="text-2xl font-bold">Editar Categoría</h2>
           <p className="text-sm opacity-90">
             Actualiza los datos de la categoría seleccionada
           </p>
         </div>
 
         {/* ===== Formulario ===== */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
           <div>
-            <label className="block text-sm font-medium mb-1 text-slate-700">
+            <label className="block text-sm font-medium text-slate-700 mb-1">
               Nombre
             </label>
             <input
               type="text"
               value={nombre}
               onChange={(e) => setNombre(e.target.value)}
-              className="w-full border rounded px-3 py-2 text-sm focus:ring-2 focus:ring-sky-200"
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:ring-2 focus:ring-orange-300 outline-none"
+              placeholder="Ej: Verduras"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1 text-slate-700">
+            <label className="block text-sm font-medium text-slate-700 mb-1">
               Posición
             </label>
             <input
-              type="text"
+              type="number"
               value={posicion}
               onChange={(e) => setPosicion(e.target.value)}
-              className="w-full border rounded px-3 py-2 text-sm focus:ring-2 focus:ring-sky-200"
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:ring-2 focus:ring-orange-300 outline-none"
+              placeholder="Ej: 1"
             />
           </div>
 
           <div className="col-span-2">
-            <label className="block text-sm font-medium mb-1 text-slate-700">
+            <label className="block text-sm font-medium text-slate-700 mb-1">
               Texto Indicativo
             </label>
             <input
               type="text"
               value={textoIndicativo}
               onChange={(e) => setTextoIndicativo(e.target.value)}
-              className="w-full border rounded px-3 py-2 text-sm focus:ring-2 focus:ring-sky-200"
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:ring-2 focus:ring-orange-300 outline-none"
+              placeholder="Ej: Productos frescos del campo"
             />
           </div>
 
@@ -106,18 +108,18 @@ export default function EditarCategoria({ visible, onClose, categoria }) {
               type="checkbox"
               checked={visibleCategoria}
               onChange={() => setVisibleCategoria(!visibleCategoria)}
-              className="h-4 w-4"
+              className="h-4 w-4 accent-orange-500"
             />
             <label className="text-sm text-slate-700">Visible</label>
           </div>
         </div>
 
         {/* ===== Icono y Banner ===== */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-6">
-          {/* Icono */}
-          <div className="flex flex-col items-center border rounded-lg py-4 px-2 bg-slate-50 hover:bg-slate-100 transition">
-            <p className="text-sm font-medium mb-2 text-slate-700">Ícono</p>
-            <div className="w-28 h-28 flex items-center justify-center bg-yellow-100 border rounded-full mb-3 overflow-hidden shadow-inner">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-8">
+          {/* Ícono */}
+          <div className="flex flex-col items-center border border-orange-100 rounded-xl bg-orange-50/40 py-6 shadow-sm hover:shadow-md transition">
+            <p className="text-sm font-medium mb-3 text-slate-700">Ícono</p>
+            <div className="w-28 h-28 flex items-center justify-center bg-white border border-orange-200 rounded-full mb-3 overflow-hidden">
               {icono ? (
                 <img
                   src={icono}
@@ -125,11 +127,11 @@ export default function EditarCategoria({ visible, onClose, categoria }) {
                   className="object-cover w-full h-full"
                 />
               ) : (
-                <span className="text-5xl text-yellow-500">?</span>
+                <ImageIcon size={36} className="text-orange-500" />
               )}
             </div>
-            <label className="bg-sky-600 hover:bg-sky-700 text-white px-3 py-1 rounded text-sm cursor-pointer shadow">
-              Cambiar
+            <label className="flex items-center gap-2 bg-gradient-to-r from-orange-500 to-fuchsia-500 hover:brightness-110 text-white px-3 py-1.5 rounded-lg text-sm cursor-pointer transition">
+              <Upload size={14} /> Cambiar
               <input
                 type="file"
                 accept="image/*"
@@ -140,11 +142,11 @@ export default function EditarCategoria({ visible, onClose, categoria }) {
           </div>
 
           {/* Banner */}
-          <div className="flex flex-col items-center border rounded-lg py-4 px-2 bg-slate-50 hover:bg-slate-100 transition">
-            <p className="text-sm font-medium mb-2 text-slate-700">
+          <div className="flex flex-col items-center border border-orange-100 rounded-xl bg-orange-50/40 py-6 shadow-sm hover:shadow-md transition">
+            <p className="text-sm font-medium mb-3 text-slate-700">
               Banner (600x400 recomendado)
             </p>
-            <div className="w-48 h-28 flex items-center justify-center bg-yellow-100 border rounded mb-3 overflow-hidden shadow-inner">
+            <div className="w-48 h-28 flex items-center justify-center bg-white border border-orange-200 rounded-lg mb-3 overflow-hidden">
               {banner ? (
                 <img
                   src={banner}
@@ -152,11 +154,11 @@ export default function EditarCategoria({ visible, onClose, categoria }) {
                   className="object-cover w-full h-full"
                 />
               ) : (
-                <span className="text-5xl text-yellow-500">?</span>
+                <ImageIcon size={36} className="text-orange-500" />
               )}
             </div>
-            <label className="bg-sky-600 hover:bg-sky-700 text-white px-3 py-1 rounded text-sm cursor-pointer shadow">
-              Cambiar
+            <label className="flex items-center gap-2 bg-gradient-to-r from-orange-500 to-fuchsia-500 hover:brightness-110 text-white px-3 py-1.5 rounded-lg text-sm cursor-pointer transition">
+              <Upload size={14} /> Cambiar
               <input
                 type="file"
                 accept="image/*"
@@ -171,13 +173,13 @@ export default function EditarCategoria({ visible, onClose, categoria }) {
         <div className="flex justify-end gap-3">
           <button
             onClick={onClose}
-            className="bg-slate-400 hover:bg-slate-500 text-white px-4 py-2 rounded text-sm shadow"
+            className="bg-slate-400 hover:bg-slate-500 text-white px-4 py-2 rounded-lg text-sm shadow-sm"
           >
             Cancelar
           </button>
           <button
             onClick={handleGuardar}
-            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded text-sm shadow-md"
+            className="bg-gradient-to-r from-orange-500 to-fuchsia-500 hover:brightness-110 text-white px-5 py-2 rounded-lg text-sm font-medium shadow-sm"
           >
             Guardar Cambios
           </button>
@@ -197,13 +199,11 @@ export default function EditarCategoria({ visible, onClose, categoria }) {
                 font-size: 0.85rem;
               }
             }
-
             @media (min-width: 768px) {
               .max-w-3xl {
                 width: 85%;
               }
             }
-
             @media (min-width: 1024px) {
               .max-w-3xl {
                 width: 70%;

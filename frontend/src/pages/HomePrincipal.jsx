@@ -56,8 +56,8 @@ export default function HomePrincipal() {
 
       {/* ==== Footer ==== */}
       <footer className="relative z-10 py-4 text-center text-slate-500 text-xs sm:text-sm border-t border-slate-200 bg-white/70 backdrop-blur">
-        © {new Date().getFullYear()} <span className="font-semibold">InventNet</span> —  
-        Sistema POS desarrollado con 💻 React + TailwindCSS
+        © {new Date().getFullYear()} <span className="font-semibold">InventNet</span>  
+      
       </footer>
 
       {/* ==== Estilos de animación ==== */}

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Plus,
   Minus,
@@ -9,6 +10,8 @@ import {
   Archive,
   Moon,
   Sun,
+  User,
+  LogOut,
 } from "lucide-react";
 import Cobrar from "./Cobrar";
 import Catalogo from "./Catalogo";
@@ -17,6 +20,8 @@ import ConsultaFacturas from "./ConsultaFacturas";
 import ConsultaProductos from "./ConsultaProductos";
 import AbrirCaja from "./AbrirCaja";
 import Clientes from "./Clientes";
+import PerfilCajera from "./PerfilCajera";
+
 
 const POSHome = () => {
   const [products, setProducts] = useState([]);
@@ -31,21 +36,29 @@ const POSHome = () => {
   const [showInventario, setShowInventario] = useState(false);
   const [showAbrirCaja, setShowAbrirCaja] = useState(false);
   const [showClientes, setShowClientes] = useState(false);
+    const [showPerfilCajera, setShowPerfilCajera] = useState(false);
+   const navigate = useNavigate();
 
-  // 🌗 Estado y persistencia del tema
+  // Perfil
+  const [showProfile, setShowProfile] = useState(false);
+  const cajero = {
+    nombre: "Ana Yuliana Hoyos",
+    rol: "Cajera Principal",
+    correo: "ana.hoyos@empresa.com",
+  };
+
+  // 🌗 Tema
   const [theme, setTheme] = useState(localStorage.getItem("theme") || "light");
-
   const toggleTheme = () => {
     const newTheme = theme === "light" ? "dark" : "light";
     setTheme(newTheme);
     localStorage.setItem("theme", newTheme);
   };
-
   useEffect(() => {
     document.documentElement.classList.toggle("dark", theme === "dark");
   }, [theme]);
 
-  // 🔄 Cargar productos y categorías
+  // 🔄 Cargar productos/categorías
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -53,16 +66,15 @@ const POSHome = () => {
           fetch("http://localhost:5000/api/products/productos"),
           fetch("http://localhost:5000/api/categorias"),
         ]);
-
         const productsData = await productResponse.json();
         const categoriesData = await categoryResponse.json();
 
-        const formattedProducts = productsData.map((product) => ({
-          id: product.id_producto,
-          name: product.nombre,
-          price: product.precio_venta,
-          category: product.id_categoria,
-          stock: product.stock_actual,
+        const formattedProducts = productsData.map((p) => ({
+          id: p.id_producto,
+          name: p.nombre,
+          price: p.precio_venta,
+          category: p.id_categoria,
+          stock: p.stock_actual,
           image: "🛍️",
         }));
 
@@ -72,7 +84,6 @@ const POSHome = () => {
         console.error("Error al cargar datos:", error);
       }
     };
-
     fetchData();
   }, []);
 
@@ -87,17 +98,16 @@ const POSHome = () => {
         );
 
   // 🛒 Funciones carrito
-  const addToCart = (product) => {
+  const addToCart = (p) => {
     setCart((prev) => {
-      const existing = prev.find((item) => item.id === product.id);
+      const existing = prev.find((i) => i.id === p.id);
       if (existing)
         return prev.map((i) =>
-          i.id === product.id ? { ...i, quantity: i.quantity + 1 } : i
+          i.id === p.id ? { ...i, quantity: i.quantity + 1 } : i
         );
-      return [...prev, { ...product, quantity: 1 }];
+      return [...prev, { ...p, quantity: 1 }];
     });
   };
-
   const updateQuantity = (id, change) => {
     setCart((prev) =>
       prev
@@ -107,8 +117,7 @@ const POSHome = () => {
         .filter((i) => i.quantity > 0)
     );
   };
-
-  const removeFromCart = (id) => setCart((prev) => prev.filter((i) => i.id !== id));
+  const removeFromCart = (id) => setCart((p) => p.filter((i) => i.id !== id));
 
   const total = cart.reduce((sum, i) => sum + i.price * i.quantity, 0);
 
@@ -117,13 +126,13 @@ const POSHome = () => {
     <div
       className={`flex h-screen transition-colors duration-300 ${
         theme === "dark"
-          ? "bg-gradient-to-br from-slate-900 via-gray-900 to-slate-950 text-slate-100"
+          ? "bg-gradient-to-br from-zinc-900 via-gray-900 to-stone-900 text-slate-100"
           : "bg-gradient-to-br from-orange-50 via-white to-rose-50 text-slate-700"
       }`}
     >
       {/* ===== Sidebar ===== */}
       <aside
-        className={`w-56 flex flex-col border-r backdrop-blur-xl shadow-md transition-all ${
+        className={`w-56 flex flex-col border-r backdrop-blur-xl shadow-md ${
           theme === "dark"
             ? "bg-slate-950/80 border-slate-800"
             : "bg-white/80 border-orange-200"
@@ -159,127 +168,82 @@ const POSHome = () => {
 
       {/* ===== Panel Central ===== */}
       <main className="flex-1 flex flex-col">
-        {/* Barra superior */}
+        {/* Header */}
         <header
-  className={`px-1 py-3 flex flex-wrap gap-2 items-center justify-center sm:justify-between border-b backdrop-blur-xl shadow-sm ${
-    theme === "dark"
-      ? "bg-slate-900/80 border-slate-800 text-slate-200"
-      : "bg-white/80 border-orange-100 text-slate-700"
-  }`}
->
-  {/* ===== Botones de Módulos ===== */}
-  <div className="flex flex-wrap gap-2 justify-center sm:justify-start">
-    <button
-      onClick={() => setShowClientes(true)}
-      className="flex items-center gap-2 px-4 py-2 rounded-lg text-white bg-gradient-to-r from-orange-500 via-rose-500 to-fuchsia-500 hover:brightness-110 transition"
-    >
-      <Users size={16} /> Clientes
-    </button>
-    <button
-      onClick={() => setShowAbrirCaja(true)}
-      className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition ${
-        theme === "dark"
-          ? "border-slate-700 bg-slate-800 hover:bg-slate-700"
-          : "border-orange-300 bg-white text-orange-700 hover:bg-orange-50"
-      }`}
-    >
-      <Box size={16} /> Abrir Caja
-    </button>
-    <button
-      onClick={() => setShowCerrarCaja(true)}
-      className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition ${
-        theme === "dark"
-          ? "border-slate-700 bg-slate-800 hover:bg-slate-700"
-          : "border-orange-300 bg-white text-orange-700 hover:bg-orange-50"
-      }`}
-    >
-      <Box size={16} /> Cerrar Caja
-    </button>
-    <button
-      onClick={() => setShowFacturas(true)}
-      className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition ${
-        theme === "dark"
-          ? "border-slate-700 bg-slate-800 hover:bg-slate-700"
-          : "border-orange-300 bg-white text-orange-700 hover:bg-orange-50"
-      }`}
-    >
-      <Archive size={16} /> Facturas
-    </button>
-    <button
-      onClick={() => setShowCatalogo(true)}
-      className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition ${
-        theme === "dark"
-          ? "border-slate-700 bg-slate-800 hover:bg-slate-700"
-          : "border-orange-300 bg-white text-orange-700 hover:bg-orange-50"
-      }`}
-    >
-      <Archive size={16} /> Catálogo
-    </button>
-    <button
-      onClick={() => setShowInventario(true)}
-      className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition ${
-        theme === "dark"
-          ? "border-slate-700 bg-slate-800 hover:bg-slate-700"
-          : "border-orange-300 bg-white text-orange-700 hover:bg-orange-50"
-      }`}
-    >
-      <Archive size={16} /> Inventario
-    </button>
-  </div>
+          className={`px-3 py-2 flex flex-wrap gap-3 items-center justify-between border-b ${
+            theme === "dark"
+              ? "bg-slate-900/80 border-slate-800 text-slate-200"
+              : "bg-white/80 border-orange-100 text-slate-700"
+          }`}
+        >
+          <div className="flex items-center gap-3">
+            <div
+              className="flex items-center gap-2 cursor-pointer"
+              onClick={() => setShowProfile(!showProfile)}
+            >
+              <div className="w-10 h-10 rounded-full bg-gradient-to-r from-orange-500 to-fuchsia-500 flex items-center justify-center text-white font-bold">
+                {cajero.nombre[0]}
+              </div>
+              <div className="leading-tight">
+                <div className="text-sm font-semibold">{cajero.nombre}</div>
+                <div className="text-xs opacity-70">{cajero.rol}</div>
+              </div>
+            </div>
+          </div>
 
-  {/* ===== Switch Modo Oscuro ===== */}
-  <div className="flex items-center gap-3">
-    <span className="text-xs font-medium opacity-70 hidden sm:block">
-      {theme === "dark" ? "Modo Oscuro" : "Modo Claro"}
-    </span>
+          <div className="flex flex-wrap gap-2 justify-center sm:justify-start">
+            {[
+              ["Clientes", () => setShowClientes(true), <Users size={16} />],
+              ["Abrir Caja", () => setShowAbrirCaja(true), <Box size={16} />],
+              ["Cerrar Caja", () => setShowCerrarCaja(true), <Box size={16} />],
+              ["Facturas", () => setShowFacturas(true), <Archive size={16} />],
+              ["Catálogo", () => setShowCatalogo(true), <Archive size={16} />],
+              ["Inventario", () => setShowInventario(true), <Archive size={16} />],
+            ].map(([label, action, icon]) => (
+              <button
+                key={label}
+                onClick={action}
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition text-sm ${
+                  theme === "dark"
+                    ? "border-slate-700 bg-slate-800 hover:bg-slate-700"
+                    : "border-orange-300 bg-white text-orange-700 hover:bg-orange-50"
+                }`}
+              >
+                {icon}
+                {label}
+              </button>
+            ))}
+          </div>
 
-    {/* Toggle */}
-    <button
-      onClick={toggleTheme}
-      className={`relative w-14 h-7 flex items-center rounded-full transition-all duration-300 ${
-        theme === "dark"
-          ? "bg-gradient-to-r from-orange-500 to-fuchsia-500"
-          : "bg-slate-300 hover:bg-slate-400"
-      }`}
-    >
-      <span
-        className={`absolute w-6 h-6 bg-white rounded-full shadow-md transform transition-transform duration-300 ${
-          theme === "dark" ? "translate-x-7" : "translate-x-1"
-        }`}
-      ></span>
-      {theme === "dark" ? (
-        <Sun
-          size={14}
-          className="absolute left-1 text-white transition-transform duration-300"
-        />
-      ) : (
-        <Moon
-          size={14}
-          className="absolute right-1 text-slate-600 transition-transform duration-300"
-        />
-      )}
-    </button>
-  </div>
-</header>
-
+          <button
+            onClick={toggleTheme}
+            className={`p-2 rounded-full ${
+              theme === "dark"
+                ? "bg-gray-800 text-yellow-300"
+                : "bg-gray-100 text-gray-700"
+            } hover:scale-105 transition`}
+          >
+            {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
+          </button>
+        </header>
 
         {/* Productos */}
-        <section className="flex-1 overflow-y-auto p-2 ">
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-7 gap-4">
+        <section className="flex-1 overflow-y-auto p-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-7 gap-3">
             {filteredProducts.map((product) => (
               <div
                 key={product.id}
                 onClick={() => addToCart(product)}
-                className={`rounded-2xl p-4 text-center cursor-pointer transition hover:scale-[1.02] ${
+                className={`rounded-2xl h-36 p-4 flex flex-col justify-between text-center cursor-pointer transition hover:scale-[1.02] ${
                   theme === "dark"
                     ? "bg-slate-900 border border-slate-700 hover:bg-gradient-to-r hover:from-orange-500 hover:to-fuchsia-500 hover:text-white"
                     : "bg-white border border-orange-100 hover:shadow-lg"
                 }`}
               >
-                <div className="text-3xl mb-2">{product.image}</div>
-                <h3 className="text-sm font-semibold">{product.name}</h3>
+                <div className="text-2xl">{product.image}</div>
+                <h3 className="text-sm font-semibold truncate">{product.name}</h3>
                 <span
-                  className={`font-bold mt-1 block ${
+                  className={`font-bold text-sm ${
                     theme === "dark" ? "text-orange-400" : "text-orange-600"
                   }`}
                 >
@@ -287,33 +251,28 @@ const POSHome = () => {
                 </span>
               </div>
             ))}
-            {filteredProducts.length === 0 && (
-              <div className="col-span-full text-center text-slate-400 py-10">
-                No hay productos disponibles.
-              </div>
-            )}
           </div>
         </section>
       </main>
 
-      {/* ===== Carrito ===== */}
+      {/* ===== Factura (más angosta) ===== */}
       <aside
-        className={`w-96 flex flex-col border-l shadow-lg transition ${
+        className={`w-80 flex flex-col border-l shadow-lg transition ${
           theme === "dark"
             ? "bg-slate-900 border-slate-800 text-slate-200"
             : "bg-white border-orange-100 text-slate-700"
         }`}
       >
         <div
-          className={`p-2 border-b ${
+          className={`p-3 border-b ${
             theme === "dark"
               ? "border-slate-700 bg-gradient-to-r from-orange-600 to-fuchsia-600 text-white"
               : "border-orange-100 bg-gradient-to-r from-orange-500 via-rose-500 to-fuchsia-500 text-white"
           }`}
         >
-          <div className="flex items-center gap-2 mb-3">
-            <ShoppingCart size={22} />
-            <h2 className="text-lg font-semibold">Factura</h2>
+          <div className="flex items-center gap-2 mb-2">
+            <ShoppingCart size={20} />
+            <h2 className="text-md font-semibold">Factura</h2>
           </div>
           <input
             type="text"
@@ -328,8 +287,7 @@ const POSHome = () => {
           />
         </div>
 
-        {/* Contenido del carrito */}
-        <div className="flex-1 overflow-y-auto p-4">
+        <div className="flex-1 overflow-y-auto p-3">
           {cart.length === 0 ? (
             <div className="text-center text-slate-500 mt-8">
               <ShoppingCart
@@ -400,9 +358,8 @@ const POSHome = () => {
           )}
         </div>
 
-        {/* Total */}
         <div
-          className={`border-t p-4 ${
+          className={`border-t p-3 ${
             theme === "dark"
               ? "border-slate-700 bg-slate-950"
               : "border-orange-100 bg-white"
@@ -426,6 +383,62 @@ const POSHome = () => {
           </button>
         </div>
       </aside>
+
+{/* ===== Menú de perfil del cajero ===== */}
+{showProfile && (
+  <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-50">
+    <div
+      className={`w-80 rounded-2xl p-6 shadow-xl border border-orange-100 ${
+        theme === "dark" ? "bg-slate-900 text-white" : "bg-white"
+      }`}
+    >
+      {/* Encabezado */}
+      <div className="flex flex-col items-center gap-2">
+        <div className="w-16 h-16 rounded-full bg-gradient-to-r from-orange-500 to-fuchsia-500 flex items-center justify-center text-2xl text-white font-bold">
+          {cajero.nombre[0]}
+        </div>
+        <h3 className="text-lg font-semibold">{cajero.nombre}</h3>
+        <p className="text-sm opacity-80">{cajero.rol}</p>
+        <p className="text-sm text-slate-400">{cajero.correo}</p>
+      </div>
+
+      {/* Botones de acción */}
+      <div className="mt-5 space-y-2">
+        {/* 👉 Ver perfil completo */}
+        <button
+          onClick={() => {
+            setShowProfile(false);
+            setShowPerfilCajera(true);
+          }}
+          className="w-full py-2 bg-gradient-to-r from-orange-500 to-fuchsia-500 text-white rounded-lg font-semibold hover:brightness-110 transition"
+        >
+          Ver perfil completo
+        </button>
+
+        {/* Cerrar sesión */}
+        <button
+          onClick={() => window.location.reload()}
+          className="w-full py-2 flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg font-semibold transition"
+        >
+          <LogOut size={16} /> Cerrar sesión
+        </button>
+
+        {/* Cerrar ventana */}
+        <button
+          onClick={() => setShowProfile(false)}
+          className="w-full text-sm text-slate-400 hover:text-slate-600 dark:hover:text-gray-300 mt-3"
+        >
+          Cerrar ventana
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
+{/* ===== Modal Perfil completo ===== */}
+{showPerfilCajera && (
+  <PerfilCajera onClose={() => setShowPerfilCajera(false)} />
+)}
 
       {/* ===== Modales ===== */}
       {showCobrar && (

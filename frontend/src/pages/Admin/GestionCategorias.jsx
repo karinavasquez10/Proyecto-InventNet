@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import ModalAgregarCategoria from "../Admin/AgregarCategoria"; 
+import { FolderTree, PlusCircle } from "lucide-react";
+import ModalAgregarCategoria from "../Admin/AgregarCategoria";
 import ModalEditarCategoria from "../Admin/EditarCategoria";
 
 export default function GestionCategorias() {
@@ -41,87 +42,111 @@ export default function GestionCategorias() {
   ];
 
   return (
-    <div className="p-6">
-      {/* ===== Título ===== */}
-      <h1 className="text-xl font-bold mb-4">Gestión de Categorías</h1>
+    <div className="p-4 sm:p-1 w-full max-w-[calc(150%-16rem)]">
+      {/* ===== Encabezado ===== */}
+      <div className="flex items-center gap-3 mb-6">
+        <div className="bg-gradient-to-r from-orange-500 to-fuchsia-500 p-2.5 rounded-lg text-white shadow-md">
+          <FolderTree size={20} />
+        </div>
+        <h1 className="text-xl sm:text-2xl font-bold text-slate-800">
+          Gestión de Categorías
+        </h1>
+      </div>
 
       {/* ===== Barra de acciones ===== */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-3">
         <p className="text-sm text-slate-600">
-          Recuerde que las categorías son las mismas para todas las sedes
+          Las categorías son compartidas en todas las sedes del sistema.
         </p>
 
-        {/* Botón Nueva Categoría */}
         <button
           onClick={() => setMostrarModalAgregar(true)}
-          className="flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-md shadow text-sm font-medium transition-all duration-200 active:scale-95"
+          className="flex items-center gap-2 bg-gradient-to-r from-orange-500 to-pink-500 hover:brightness-110 text-white px-4 py-2 rounded-md shadow-md text-sm font-medium transition active:scale-95"
         >
-          <span className="text-lg font-bold">＋</span> NUEVA CATEGORÍA
+          <PlusCircle size={16} /> Nueva Categoría
         </button>
       </div>
 
-      {/* ===== Tabla responsive ===== */}
-      <div className="overflow-x-auto bg-white rounded shadow">
-        <table className="min-w-full text-sm">
-          <thead className="bg-slate-100 text-slate-600">
+      {/* ===== Tabla ===== */}
+      <div className="overflow-x-auto bg-white rounded-xl shadow-md border border-slate-200 transition hover:shadow-lg">
+        <table className="min-w-full text-sm border-collapse">
+          <thead className="bg-gradient-to-r from-orange-400/80 to-fuchsia-400/80 text-white">
             <tr>
-              <th className="px-4 py-2 text-left">Nombre</th>
-              <th className="px-4 py-2 text-left hidden sm:table-cell">
+              <th className="px-4 py-2 text-left font-medium">Nombre</th>
+              <th className="px-4 py-2 text-left hidden sm:table-cell font-medium">
                 Posición
               </th>
-              <th className="px-4 py-2 text-left">Icono</th>
-              <th className="px-4 py-2 text-left">Banner</th>
-              <th className="px-4 py-2 text-center">Tienda Virtual</th>
-              <th className="px-4 py-2 text-center hidden md:table-cell">
+              <th className="px-4 py-2 text-left font-medium">Icono</th>
+              <th className="px-4 py-2 text-left font-medium">Banner</th>
+              <th className="px-4 py-2 text-center font-medium">Tienda Virtual</th>
+              <th className="px-4 py-2 text-center hidden md:table-cell font-medium">
                 Destacada
               </th>
-              <th className="px-4 py-2 text-center hidden md:table-cell">
+              <th className="px-4 py-2 text-center hidden md:table-cell font-medium">
                 Inactivar TPV
               </th>
-              <th className="px-4 py-2 text-center">Acciones</th>
+              <th className="px-4 py-2 text-center font-medium">Acciones</th>
             </tr>
           </thead>
-          <tbody className="divide-y">
+
+          <tbody className="divide-y divide-slate-100">
             {categorias.map((cat) => (
-              <tr key={cat.id} className="hover:bg-slate-50 transition">
-                <td className="px-4 py-2">{cat.nombre}</td>
-                <td className="px-4 py-2 hidden sm:table-cell">
+              <tr
+                key={cat.id}
+                className="hover:bg-orange-50/70 transition-all duration-150"
+              >
+                <td className="px-4 py-3 font-medium text-slate-700">
+                  {cat.nombre}
+                </td>
+                <td className="px-4 py-3 text-slate-600 hidden sm:table-cell">
                   {cat.posicion}
                 </td>
-                <td className="px-4 py-2">
+                <td className="px-4 py-3">
                   <img
                     src={cat.icono}
                     alt={cat.nombre}
-                    className="h-10 w-10 object-cover rounded"
+                    className="h-10 w-10 object-cover rounded-full border border-slate-200 shadow-sm"
                   />
                 </td>
-                <td className="px-4 py-2">
+                <td className="px-4 py-3">
                   <img
                     src={cat.banner}
                     alt={`${cat.nombre} banner`}
-                    className="h-10 w-20 object-cover rounded"
+                    className="h-10 w-24 object-cover rounded border border-slate-200 shadow-sm"
                   />
                 </td>
-                <td className="px-4 py-2 text-center">
-                  <input type="checkbox" defaultChecked={cat.visible} />
+                <td className="px-4 py-3 text-center">
+                  <input
+                    type="checkbox"
+                    defaultChecked={cat.visible}
+                    className="accent-orange-500 h-4 w-4"
+                  />
                 </td>
-                <td className="px-4 py-2 text-center hidden md:table-cell">
-                  <input type="checkbox" defaultChecked={cat.destacada} />
+                <td className="px-4 py-3 text-center hidden md:table-cell">
+                  <input
+                    type="checkbox"
+                    defaultChecked={cat.destacada}
+                    className="accent-fuchsia-500 h-4 w-4"
+                  />
                 </td>
-                <td className="px-4 py-2 text-center hidden md:table-cell">
-                  <input type="checkbox" defaultChecked={cat.inactivar} />
+                <td className="px-4 py-3 text-center hidden md:table-cell">
+                  <input
+                    type="checkbox"
+                    defaultChecked={cat.inactivar}
+                    className="accent-slate-500 h-4 w-4"
+                  />
                 </td>
-                <td className="px-4 py-2 flex justify-center gap-2">
+                <td className="px-4 py-3 text-center flex justify-center gap-2">
                   <button
                     onClick={() => {
                       setCategoriaSeleccionada(cat);
                       setMostrarModalEditar(true);
                     }}
-                    className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-xs"
+                    className="bg-sky-500 hover:bg-sky-600 text-white px-3 py-1 rounded text-xs shadow-sm transition"
                   >
                     Editar
                   </button>
-                  <button className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-xs">
+                  <button className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-xs shadow-sm transition">
                     Eliminar
                   </button>
                 </td>
@@ -131,13 +156,13 @@ export default function GestionCategorias() {
         </table>
       </div>
 
-      {/* ===== Modal de Agregar Categoría ===== */}
+      {/* ===== Modal Agregar ===== */}
       <ModalAgregarCategoria
         visible={mostrarModalAgregar}
         onClose={() => setMostrarModalAgregar(false)}
       />
 
-      {/* ===== Modal de Editar Categoría ===== */}
+      {/* ===== Modal Editar ===== */}
       <ModalEditarCategoria
         visible={mostrarModalEditar}
         onClose={() => setMostrarModalEditar(false)}

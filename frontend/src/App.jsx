@@ -26,6 +26,18 @@ import CargueMasivo from "./pages/Admin/CargueMasivo";
 import ProductosRecogidos from "./pages/Admin/ProductosRecogidos";
 import Cotizaciones from "./pages/Admin/Cotizaciones";
 import HomePrincipal from "./pages/HomePrincipal";
+import Salidas from "./pages/Admin/Salidas";
+import Movimientos from "./pages/Admin/Movimientos";
+import ListaPrecios from "./pages/Admin/ListaPrecios";
+import CalibrarProductos from "./pages/Admin/CalibrarProductos";
+import RegistroCompras from "./pages/Admin/RegistroCompras";
+import RegistroVentas from "./pages/Admin/RegistroVentas";
+import ConfiguracionSistema from "./pages/Admin/ConfiguracionSistema";
+import Auditoria from "./pages/Admin/Auditoria";
+import UsuariosPermiso from "./pages/Admin/UsuariosPermiso";
+import PerfilAdmin from "./pages/Admin/PerfilAdmin";
+import PerfilCajera from "./pages/Cajero/PerfilCajera";
+
 
 
 
@@ -45,6 +57,7 @@ function App() {
           <Route path="/AbrirCaja" element={<AbrirCaja />} />
           <Route path="/Clientes" element={<Clientes />} />
           <Route path="/Home" element={<Home />} />
+           <Route path="/PerfilCajera" element={<PerfilCajera />} />
             
           {/* Rutas de admin */}
           <Route path="/HomeAdmin" element={<HomeAdmin />}>
@@ -59,10 +72,22 @@ function App() {
             <Route path="GestionProveedores" element={<GestionProveedores />} />
             <Route path="Indicadores" element={<Indicadores />} />
             <Route path="Entradas" element={<Entradas />} />
+            <Route path="Salidas" element={<Salidas />} />
             <Route path="SedePrincipal" element={<SedePrincipal />} />
             <Route path="CargueMasivo" element={<CargueMasivo />} />
             <Route path="ProductosRecogidos" element={<ProductosRecogidos />} />
             <Route path="Cotizaciones" element={<Cotizaciones />} />
+            <Route path="Movimientos" element={<Movimientos />} />
+            <Route path="ListaPrecios" element={<ListaPrecios />} />
+            <Route path="CalibrarProductos" element={<CalibrarProductos />} />
+            <Route path="RegistroCompras" element={<RegistroCompras />} />
+            <Route path="RegistroVentas" element={<RegistroVentas />} />
+            <Route path="ConfiguracionSistema" element={<ConfiguracionSistema />} />
+            <Route path="Auditoria" element={<Auditoria />} />
+            <Route path="UsuariosPermiso" element={<UsuariosPermiso />} />
+            <Route path="PerfilAdmin" element={<PerfilAdmin />} />
+            
+
 
           </Route>
         </Routes>
