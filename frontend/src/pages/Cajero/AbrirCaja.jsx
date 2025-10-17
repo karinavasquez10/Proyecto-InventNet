@@ -370,5 +370,4 @@ function GradientBtn({ children, onClick }) {
   );
 }
 
-/* ====================== export default ====================== */
 export default AbrirCaja;

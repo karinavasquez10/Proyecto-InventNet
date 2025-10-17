@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { X } from "lucide-react";
+import ModeloFactura from "../Admin/ModeloFactura";
 
 /* ======= Hook para sincronizar el modo de color global ======= */
 function useSystemTheme() {
@@ -26,6 +27,7 @@ function useSystemTheme() {
 const Cobrar = ({ total = 0, onClose }) => {
   const theme = useSystemTheme();
   const [efectivo, setEfectivo] = useState("");
+  const [showFactura, setShowFactura] = useState(false);
 
   const handleNumberClick = (num) => setEfectivo(efectivo + num);
   const handleClear = () => setEfectivo("");
@@ -33,6 +35,7 @@ const Cobrar = ({ total = 0, onClose }) => {
 
   const efectivoInt = parseInt(efectivo || 0);
   const cambio = efectivoInt - total;
+  
 
   const money = (n) =>
     (Number(n) || 0).toLocaleString("es-CO", {
@@ -212,15 +215,22 @@ const Cobrar = ({ total = 0, onClose }) => {
               Confirmar
             </button>
           </div>
+
           <button
-            className={`w-full py-2 rounded-md font-bold text-xs transition ${
-              theme === "dark"
-                ? "bg-sky-700 hover:bg-sky-800"
-                : "bg-gradient-to-r from-sky-500 to-blue-600 hover:brightness-110 text-white"
-            }`}
-          >
-            Confirmar e Imprimir
-          </button>
+          onClick={() => setShowFactura(true)}
+          className={`w-full py-2 rounded-md font-bold text-xs transition ${
+            theme === "dark"
+              ? "bg-sky-700 hover:bg-sky-800"
+              : "bg-gradient-to-r from-sky-500 to-blue-600 hover:brightness-110 text-white"
+          }`}
+        >
+          Confirmar e Imprimir
+        </button>
+
+        {showFactura && (
+          <ModeloFactura open={showFactura} onClose={() => setShowFactura(false)} />
+        )}
+
         </div>
       </div>
     </div>
