@@ -1,12 +1,14 @@
+// src/pages/Admin/ConsultaFacturas.jsx
 import React from "react";
 import { createPortal } from "react-dom";
 import { X, Printer } from "lucide-react";
 
-/* =============== Hook para detectar modo del sistema =============== */
+/* =================== Hook: detectar tema del sistema =================== */
 function useSystemTheme() {
   const [theme, setTheme] = React.useState(
     document.documentElement.classList.contains("dark") ? "dark" : "light"
   );
+
   React.useEffect(() => {
     const observer = new MutationObserver(() => {
       const isDark = document.documentElement.classList.contains("dark");
@@ -18,12 +20,14 @@ function useSystemTheme() {
     });
     return () => observer.disconnect();
   }, []);
+
   return theme;
 }
 
-/* =============== Modal principal =============== */
+/* =================== Modal principal =================== */
 function ConsultaFacturas({ open, onClose }) {
   if (!open) return null;
+
   return createPortal(
     <ModalShell onClose={onClose}>
       <ConsultaFacturasBody onClose={onClose} />
@@ -32,13 +36,15 @@ function ConsultaFacturas({ open, onClose }) {
   );
 }
 
-/* =============== Shell =============== */
+/* =================== Shell =================== */
 function ModalShell({ children, onClose }) {
   React.useEffect(() => {
     const onKey = (e) => e.key === "Escape" && onClose?.();
     window.addEventListener("keydown", onKey);
+
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
+
     return () => {
       window.removeEventListener("keydown", onKey);
       document.body.style.overflow = prev;
@@ -46,7 +52,10 @@ function ModalShell({ children, onClose }) {
   }, [onClose]);
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-[60] flex items-center justify-center"
+      onClick={onClose}
+    >
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
       <div
         className="relative w-[95vw] max-w-[1200px] h-[88vh] rounded-2xl shadow-2xl overflow-hidden grid grid-rows-[auto,1fr]
@@ -59,19 +68,22 @@ function ModalShell({ children, onClose }) {
   );
 }
 
-/* =============== Datos demo =============== */
+/* =================== Datos de ejemplo =================== */
 const INVOICES = [
-  { id: 16791, fecha: "2025-09-20", cajero: "JULIANA HOYOS", medio: "CONTADO", hora: "16:41:49", estado: "SALDADA", subTotal: 46040, total: 46000 },
-  { id: 16790, fecha: "2025-09-20", cajero: "JULIANA HOYOS", medio: "CONTADO", hora: "16:27:05", estado: "SALDADA", subTotal: 1752, total: 1750 },
-  { id: 16789, fecha: "2025-09-20", cajero: "JULIANA HOYOS", medio: "CONTADO", hora: "16:23:46", estado: "SALDADA", subTotal: 18686, total: 18650 },
-  { id: 16788, fecha: "2025-09-20", cajero: "JULIANA HOYOS", medio: "CONTADO", hora: "16:18:17", estado: "SALDADA", subTotal: 3040, total: 3000 },
+  { id: 16791, fecha: "2025-09-20", cajero: "JULIANA HOYOS", medio: "CONTADO", hora: "16:41:49", estado: "SALDADA", total: 46000 },
+  { id: 16790, fecha: "2025-09-20", cajero: "JULIANA HOYOS", medio: "CONTADO", hora: "16:27:05", estado: "SALDADA", total: 1750 },
+  { id: 16789, fecha: "2025-09-20", cajero: "JULIANA HOYOS", medio: "CONTADO", hora: "16:23:46", estado: "SALDADA", total: 18650 },
+  { id: 16788, fecha: "2025-09-20", cajero: "JULIANA HOYOS", medio: "CONTADO", hora: "16:18:17", estado: "SALDADA", total: 3000 },
 ];
 
-/* =============== Helpers =============== */
 const money = (n) =>
-  (Number(n) || 0).toLocaleString("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 });
+  (Number(n) || 0).toLocaleString("es-CO", {
+    style: "currency",
+    currency: "COP",
+    maximumFractionDigits: 0,
+  });
 
-/* =============== Cuerpo del modal =============== */
+/* =================== Cuerpo del modal =================== */
 function ConsultaFacturasBody({ onClose }) {
   const theme = useSystemTheme();
 
@@ -91,7 +103,6 @@ function ConsultaFacturasBody({ onClose }) {
       (medio === "TODOS" || i.medio === medio) &&
       (estado === "TODOS" || i.estado === estado)
   );
-
   const total = filtered.reduce((s, i) => s + i.total, 0);
 
   return (
@@ -123,56 +134,35 @@ function ConsultaFacturasBody({ onClose }) {
         }`}
       >
         {/* Filtros */}
-  
-<section
-  className={`rounded-xl p-5 shadow-md border transition ${
-    theme === "dark"
-      ? "bg-slate-900 border-slate-700"
-      : "bg-white border-slate-200"
-  }`}
->
-  <h3 className="font-semibold text-slate-900 dark:text-white mb-3">
-    Filtros de búsqueda
-  </h3>
+        <section
+          className={`rounded-xl p-5 shadow-md border transition ${
+            theme === "dark"
+              ? "bg-slate-900 border-slate-700"
+              : "bg-white border-slate-200"
+          }`}
+        >
+          <h3 className="font-semibold mb-3 inline-block px-3 py-1 rounded-md text-white shadow-md bg-gradient-to-r from-orange-400 via-pink-400 to-fuchsia-500">
+            Filtros de búsqueda
+          </h3>
 
-  <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-    <Field label="Fecha">
-      <input
-        type="date"
-        className={`w-full rounded-lg border px-3 py-2 text-sm transition
-          ${theme === "dark"
-            ? "border-slate-700 bg-slate-800 text-slate-100 focus:ring-2 focus:ring-fuchsia-400"
-            : "border-slate-300 bg-white text-slate-800 focus:ring-2 focus:ring-orange-300"}
-        `}
-        value={fecha}
-        onChange={(e) => setFecha(e.target.value)}
-      />
-    </Field>
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+            <Field label="Fecha">
+              <input
+                type="date"
+                className={`w-full rounded-lg border px-3 py-2 text-sm transition
+                ${theme === "dark"
+                  ? "border-slate-700 bg-slate-800 text-slate-100 focus:ring-2 focus:ring-fuchsia-400"
+                  : "border-slate-300 bg-white text-slate-800 focus:ring-2 focus:ring-orange-300"}`}
+                value={fecha}
+                onChange={(e) => setFecha(e.target.value)}
+              />
+            </Field>
 
-    <Select
-      label="Cajero"
-      options={cajeros}
-      value={cajero}
-      onChange={setCajero}
-      theme={theme}
-    />
-    <Select
-      label="Medio"
-      options={medios}
-      value={medio}
-      onChange={setMedio}
-      theme={theme}
-    />
-    <Select
-      label="Estado"
-      options={estados}
-      value={estado}
-      onChange={setEstado}
-      theme={theme}
-    />
-  </div>
-</section>
-
+            <Select label="Cajero" options={cajeros} value={cajero} onChange={setCajero} theme={theme} />
+            <Select label="Medio" options={medios} value={medio} onChange={setMedio} theme={theme} />
+            <Select label="Estado" options={estados} value={estado} onChange={setEstado} theme={theme} />
+          </div>
+        </section>
 
         {/* Tabla */}
         <section
@@ -183,15 +173,19 @@ function ConsultaFacturasBody({ onClose }) {
           }`}
         >
           <div className="flex items-center justify-between mb-3">
-            <h3 className="font-semibold text-slate-900 dark:text-white">Resultados</h3>
+            <h3 className="font-semibold inline-block px-3 py-1 rounded-md text-white shadow-md bg-gradient-to-r from-orange-400 via-pink-400 to-fuchsia-500">
+              Resultados
+            </h3>
             <PrintButton onClick={() => window.print()} />
           </div>
 
           <div className="overflow-x-auto border border-orange-100 dark:border-slate-700 rounded-xl">
             <table className="min-w-full text-sm">
               <thead
-                className={`text-slate-700 dark:text-slate-300 ${
-                  theme === "dark" ? "bg-slate-800" : "bg-orange-50"
+                className={`${
+                  theme === "dark"
+                    ? "bg-slate-800 text-slate-200"
+                    : "bg-orange-50 text-slate-800"
                 }`}
               >
                 <tr>
@@ -235,7 +229,7 @@ function ConsultaFacturasBody({ onClose }) {
                   ))
                 ) : (
                   <tr>
-                    <Td colSpan={8} className="text-center py-8 text-slate-500">
+                    <Td colSpan={8} className="text-center py-8 text-slate-500 dark:text-slate-400">
                       No hay facturas que coincidan con los filtros seleccionados.
                     </Td>
                   </tr>
@@ -253,17 +247,13 @@ function ConsultaFacturasBody({ onClose }) {
               : "bg-white border-orange-100"
           }`}
         >
-          <div className="flex justify-between items-center">
-            <span className="text-sm text-slate-600 dark:text-slate-400 font-medium">
-              Total general
-            </span>
-            <span className="text-lg font-semibold text-slate-900 dark:text-white">
-              {money(total)}
-            </span>
+          <div className="flex justify-between items-center p-3 rounded-md shadow-md text-white bg-gradient-to-r from-orange-400 via-pink-400 to-fuchsia-500">
+            <span className="text-sm font-semibold">Total general</span>
+            <span className="text-lg font-bold">{money(total)}</span>
           </div>
         </section>
 
-        {/* Cierre */}
+        {/* Botón de cierre */}
         <div className="flex justify-end">
           <GradientBtn onClick={onClose}>Cerrar</GradientBtn>
         </div>
@@ -272,7 +262,7 @@ function ConsultaFacturasBody({ onClose }) {
   );
 }
 
-/* =============== Helpers UI =============== */
+/* =================== Helpers UI =================== */
 function Field({ label, children }) {
   return (
     <div>
@@ -281,9 +271,10 @@ function Field({ label, children }) {
     </div>
   );
 }
+
 function Label({ children }) {
   return (
-    <div className="text-xs font-medium text-slate-700 dark:text-slate-800 mb-1">
+    <div className="inline-block px-2 py-1 mb-1 rounded-md text-xs font-semibold text-white bg-gradient-to-r from-orange-400 via-pink-400 to-fuchsia-500 shadow-sm">
       {children}
     </div>
   );
@@ -297,8 +288,7 @@ function Select({ label, options, value, onChange, theme }) {
         className={`w-full rounded-lg border px-3 py-2 text-sm transition
           ${theme === "dark"
             ? "border-slate-700 bg-slate-800 text-slate-100 focus:ring-2 focus:ring-fuchsia-400"
-            : "border-slate-300 bg-white text-slate-800 focus:ring-2 focus:ring-orange-300"}
-        `}
+            : "border-slate-300 bg-white text-slate-800 focus:ring-2 focus:ring-orange-300"}`}
         value={value}
         onChange={(e) => onChange(e.target.value)}
       >
@@ -311,15 +301,13 @@ function Select({ label, options, value, onChange, theme }) {
 }
 
 function Th({ children, className = "" }) {
-  return <th className={`text-left px-4 py-3 font-medium ${className}`}>{children}</th>;
+  return <th className={`text-left px-4 py-3 font-semibold ${className}`}>{children}</th>;
 }
+
 function Td({ children, className = "", colSpan }) {
-  return (
-    <td colSpan={colSpan} className={`px-4 py-2 ${className}`}>
-      {children}
-    </td>
-  );
+  return <td colSpan={colSpan} className={`px-4 py-2 ${className}`}>{children}</td>;
 }
+
 function PrintButton({ onClick }) {
   return (
     <button
@@ -331,6 +319,7 @@ function PrintButton({ onClick }) {
     </button>
   );
 }
+
 function SmallBtn({ children, variant = "solid", onClick }) {
   const base = "px-3 py-1.5 rounded-md text-xs font-medium transition";
   const styles =
@@ -343,6 +332,7 @@ function SmallBtn({ children, variant = "solid", onClick }) {
     </button>
   );
 }
+
 function GradientBtn({ children, onClick }) {
   return (
     <button
@@ -354,5 +344,4 @@ function GradientBtn({ children, onClick }) {
   );
 }
 
-/* =============== Export =============== */
 export default ConsultaFacturas;

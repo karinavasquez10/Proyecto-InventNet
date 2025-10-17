@@ -67,7 +67,7 @@ export default function CalibrarProductos() {
         </h1>
       </div>
       <p className="text-sm text-slate-500 mb-6 font-medium">
-        Ajuste y edición de precios – MERKA FRUVER FLORENCIA
+        Ajuste y edición de precios – InventNet
       </p>
 
       {/* ====== FILTROS ====== */}

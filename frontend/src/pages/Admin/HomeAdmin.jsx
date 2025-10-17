@@ -77,6 +77,11 @@ const [openMenu, setOpenMenu] = useState(null);
       label: "Proveedores",
       children: [{ name: "Gestión de Proveedores", path: "GestionProveedores" }],
     },
+
+      {
+      label: "Papelera",
+      children: [{ name: "Gestión de papelera", path: "GestionPapelera" }],
+    },
   ];
 
   const isDashboard = location.pathname === "/HomeAdmin";

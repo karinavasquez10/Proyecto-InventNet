@@ -7,7 +7,6 @@ function useSystemTheme() {
   const [theme, setTheme] = React.useState(
     document.documentElement.classList.contains("dark") ? "dark" : "light"
   );
-
   React.useEffect(() => {
     const observer = new MutationObserver(() => {
       const isDark = document.documentElement.classList.contains("dark");
@@ -19,7 +18,6 @@ function useSystemTheme() {
     });
     return () => observer.disconnect();
   }, []);
-
   return theme;
 }
 
@@ -72,7 +70,7 @@ const MOCK = [
 ];
 
 function ClientesBody({ onClose }) {
-  const theme = useSystemTheme(); // ✅ sincroniza con el modo global
+  const theme = useSystemTheme();
 
   const [rows, setRows] = React.useState(MOCK);
   const [q, setQ] = React.useState("");
@@ -81,39 +79,16 @@ function ClientesBody({ onClose }) {
     doc: "", nombres: "", apellidos: "", telefono: "", email: "", direccion: ""
   });
 
-  const [filters, setFilters] = React.useState({
-    doc: "", nombres: "", apellidos: "", telefono: "", email: "", direccion: ""
-  });
-
   const [page, setPage] = React.useState(1);
   const perPage = 10;
 
-  const handleFilterChange = (k, v) => {
-    setFilters((f) => ({ ...f, [k]: v }));
-    setPage(1);
-  };
-
-  const filtered = rows.filter((r) => {
-    const matchQ = !q || Object.values(r).some((v) => String(v).toLowerCase().includes(q.toLowerCase()));
-    const matchCols =
-      (!filters.doc || r.doc.includes(filters.doc)) &&
-      (!filters.nombres || r.nombres.toLowerCase().includes(filters.nombres.toLowerCase())) &&
-      (!filters.apellidos || r.apellidos.toLowerCase().includes(filters.apellidos.toLowerCase())) &&
-      (!filters.telefono || r.telefono.includes(filters.telefono)) &&
-      (!filters.email || r.email.toLowerCase().includes(filters.email.toLowerCase())) &&
-      (!filters.direccion || r.direccion.toLowerCase().includes(filters.direccion.toLowerCase()));
-    return matchQ && matchCols;
-  });
+  const filtered = rows.filter((r) =>
+    Object.values(r).some((v) => String(v).toLowerCase().includes(q.toLowerCase()))
+  );
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / perPage));
   const pageData = filtered.slice((page - 1) * perPage, page * perPage);
   const go = (p) => setPage(Math.min(Math.max(1, p), totalPages));
-
-  const resetFilters = () => {
-    setFilters({ doc: "", nombres: "", apellidos: "", telefono: "", email: "", direccion: "" });
-    setQ("");
-    setPage(1);
-  };
 
   const handleCreate = () => {
     if (!form.doc || !form.nombres) {
@@ -130,47 +105,41 @@ function ClientesBody({ onClose }) {
   return (
     <>
       {/* Header */}
-      <div
-        className={`h-14 px-5 flex items-center justify-between text-white transition-colors duration-300 ${
-          theme === "dark"
-            ? "bg-slate-800 border-b border-slate-700"
-            : "bg-gradient-to-r from-orange-500 via-rose-500 to-fuchsia-500"
-        }`}
-      >
-        <div className="flex items-center gap-3">
-          <h2 className="text-base font-semibold">Gestión de Clientes</h2>
-          <span className="text-[11px] opacity-80 hidden sm:inline">
-            MERKA FRUVER FLORENCIA
-          </span>
-        </div>
-        <button
-          onClick={onClose}
-          className="p-2 rounded-md hover:bg-white/20 transition"
-        >
-          <X size={18} />
-        </button>
+
+    <div
+      className={`h-14 px-5 flex items-center justify-between text-white transition-colors duration-300 shadow-sm ${
+        theme === "dark"
+          ? "bg-gradient-to-r from-orange-500 via-pink-500 to-fuchsia-500"
+          : "bg-gradient-to-r from-orange-400 via-pink-400 to-fuchsia-500"
+      }`}
+    >
+      <div className="flex items-center gap-3">
+        <h2 className="text-base font-semibold">Gestión de Clientes</h2>
+        <span className="text-[11px] opacity-80 hidden sm:inline">InventNet</span>
       </div>
+      <button
+        onClick={onClose}
+        className="p-2 rounded-md hover:bg-white/20 transition"
+      >
+        <X size={18} />
+      </button>
+    </div>
+
 
       {/* Body */}
       <div
         className={`overflow-y-auto p-5 transition-colors duration-300 ${
           theme === "dark"
             ? "bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-200"
-            : "bg-gradient-to-br from-orange-50 via-white to-rose-50 text-slate-700"
+            : "bg-gradient-to-br from-orange-50 via-white to-rose-50 text-slate-800"
         }`}
       >
         {/* Acciones */}
         <div className="flex flex-wrap items-center justify-between mb-4 gap-2">
           <div className="flex flex-wrap gap-2">
-            <SmallBtn variant="soft" onClick={() => alert("QR auto registro")}>
-              <QrCode size={14} /> QR Auto Registro
-            </SmallBtn>
-            <SmallBtn variant="soft" onClick={() => window.location.reload()}>
-              <RefreshCcw size={14} /> Actualizar
-            </SmallBtn>
-            <SmallBtn variant="soft" onClick={() => alert("Creación masiva")}>
-              <Upload size={14} /> Creación Masiva
-            </SmallBtn>
+            <SmallBtn variant="soft"><QrCode size={14} /> QR Auto Registro</SmallBtn>
+            <SmallBtn variant="soft"><RefreshCcw size={14} /> Actualizar</SmallBtn>
+            <SmallBtn variant="soft"><Upload size={14} /> Creación Masiva</SmallBtn>
           </div>
 
           <div className="flex gap-2">
@@ -183,7 +152,7 @@ function ClientesBody({ onClose }) {
                 placeholder="Buscar cliente..."
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
-                className="pl-9 w-60 rounded-lg border border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                className="pl-9 w-60 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 dark:text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
               />
             </div>
             <SmallBtn onClick={() => setShowCreate((s) => !s)}>
@@ -192,7 +161,7 @@ function ClientesBody({ onClose }) {
           </div>
         </div>
 
-        {/* Form crear cliente */}
+        {/* Crear cliente */}
         {showCreate && (
           <div className="border border-orange-200 dark:border-slate-700 rounded-xl p-4 bg-white dark:bg-slate-800 shadow-sm mb-5">
             <h3 className="text-sm font-semibold mb-3 text-slate-700 dark:text-slate-100">
@@ -213,7 +182,7 @@ function ClientesBody({ onClose }) {
                     onChange={(e) =>
                       setForm({ ...form, [key]: e.target.value })
                     }
-                    className="w-full rounded-lg border border-slate-300 dark:border-slate-700 dark:bg-slate-900 px-3 py-2 text-sm"
+                    className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
                   />
                 </Field>
               ))}
@@ -228,13 +197,19 @@ function ClientesBody({ onClose }) {
         )}
 
         {/* Tabla */}
-        <div className="border rounded-xl overflow-x-auto shadow-sm bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
+        <div
+          className={`border rounded-xl overflow-x-auto shadow-sm transition ${
+            theme === "dark"
+              ? "bg-slate-900 border-slate-700"
+              : "bg-white border-orange-200"
+          }`}
+        >
           <table className="min-w-full text-sm">
             <thead
               className={`${
                 theme === "dark"
-                  ? "bg-slate-800 text-slate-100"
-                  : "bg-gradient-to-r from-orange-500 via-rose-500 to-fuchsia-500 text-white"
+                  ? "bg-gradient-to-r from-orange-500 via-pink-500 to-fuchsia-500 text-white"
+                  : "bg-orange-100 text-slate-800"
               }`}
             >
               <tr>
@@ -248,11 +223,15 @@ function ClientesBody({ onClose }) {
                 <Th className="text-center w-28">Acciones</Th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+            <tbody className="divide-y divide-orange-100 dark:divide-slate-800">
               {pageData.map((c, i) => (
                 <tr
                   key={c.id}
-                  className="hover:bg-orange-50/50 dark:hover:bg-slate-800 transition"
+                  className={`transition ${
+                    theme === "dark"
+                      ? "hover:bg-slate-800 text-slate-200"
+                      : "hover:bg-orange-100 text-slate-800"
+                  }`}
                 >
                   <Td>{(page - 1) * perPage + i + 1}</Td>
                   <Td className="font-medium">{c.doc}</Td>
@@ -263,18 +242,8 @@ function ClientesBody({ onClose }) {
                   <Td>{c.direccion}</Td>
                   <Td className="text-center">
                     <div className="flex items-center justify-center gap-2">
-                      <SmallBtn
-                        variant="outline"
-                        onClick={() => alert(`Editar ${c.doc}`)}
-                      >
-                        ✏️
-                      </SmallBtn>
-                      <SmallBtn
-                        variant="soft"
-                        onClick={() => alert(`Ver ${c.doc}`)}
-                      >
-                        👁️
-                      </SmallBtn>
+                      <SmallBtn variant="outline">✏️</SmallBtn>
+                      <SmallBtn variant="soft">👁️</SmallBtn>
                     </div>
                   </Td>
                 </tr>

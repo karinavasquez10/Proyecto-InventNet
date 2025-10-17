@@ -41,6 +41,7 @@ import Auditoria from "./pages/Admin/Auditoria";
 import UsuariosPermiso from "./pages/Admin/UsuariosPermiso";
 import PerfilAdmin from "./pages/Admin/PerfilAdmin";
 import PerfilCajera from "./pages/Cajero/PerfilCajera";
+import GestionPapelera from "./pages/Admin/GestionPapelera";
 
 function App() {
   return (
@@ -104,6 +105,8 @@ function App() {
               <Route path="Auditoria" element={<Auditoria />} />
               <Route path="UsuariosPermiso" element={<UsuariosPermiso />} />
               <Route path="PerfilAdmin" element={<PerfilAdmin />} />
+              <Route path="GestionPapelera" element={<GestionPapelera />} />
+              
             </Route>
           </Routes>
         </Router>

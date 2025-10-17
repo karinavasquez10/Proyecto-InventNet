@@ -1,8 +1,11 @@
 // src/pages/Admin/UsuariosPermisos.jsx
 import React, { useState } from "react";
-import { Users, Shield, UserPlus, Lock, Edit2, Trash2 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Users, Shield, UserPlus, Edit2, Trash2, Save } from "lucide-react";
 
 export default function UsuariosPermiso() {
+  const navigate = useNavigate();
+
   const [usuarios, setUsuarios] = useState([
     { id: 1, nombre: "Karen Hoyos", rol: "Administrador", activo: true },
     { id: 2, nombre: "Ana López", rol: "Cajero", activo: true },
@@ -26,6 +29,10 @@ export default function UsuariosPermiso() {
     }));
   };
 
+  const handleGuardarCambios = () => {
+    alert("✅ Cambios guardados correctamente (simulación).");
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-sky-50 px-6 sm:px-60 py-10 rounded-xl">
       {/* ===== Encabezado ===== */}
@@ -45,7 +52,10 @@ export default function UsuariosPermiso() {
             <UserPlus size={18} className="text-indigo-500" />
             Usuarios registrados ({usuarios.length})
           </h2>
-          <button className="bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm shadow-sm">
+          <button
+            onClick={() => navigate("/HomeAdmin/CrearUsuario")}
+            className="bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm shadow-sm"
+          >
             + Nuevo Usuario
           </button>
         </div>
@@ -55,7 +65,10 @@ export default function UsuariosPermiso() {
             <thead className="bg-gradient-to-r from-indigo-400/80 to-sky-400/80 text-white">
               <tr>
                 {["Nombre", "Rol", "Activo", "Acciones"].map((col) => (
-                  <th key={col} className="px-4 py-2 text-left text-xs uppercase tracking-wide">
+                  <th
+                    key={col}
+                    className="px-4 py-2 text-left text-xs uppercase tracking-wide"
+                  >
                     {col}
                   </th>
                 ))}
@@ -63,13 +76,20 @@ export default function UsuariosPermiso() {
             </thead>
             <tbody>
               {usuarios.map((u) => (
-                <tr key={u.id} className="border-b border-slate-100 hover:bg-indigo-50 transition">
-                  <td className="px-4 py-2 font-medium text-slate-800">{u.nombre}</td>
+                <tr
+                  key={u.id}
+                  className="border-b border-slate-100 hover:bg-indigo-50 transition"
+                >
+                  <td className="px-4 py-2 font-medium text-slate-800">
+                    {u.nombre}
+                  </td>
                   <td className="px-4 py-2">{u.rol}</td>
                   <td className="px-4 py-2">
                     <span
                       className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                        u.activo ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-600"
+                        u.activo
+                          ? "bg-emerald-100 text-emerald-700"
+                          : "bg-rose-100 text-rose-600"
                       }`}
                     >
                       {u.activo ? "Sí" : "No"}
@@ -109,8 +129,11 @@ export default function UsuariosPermiso() {
             </thead>
             <tbody>
               {Object.entries(permisos).map(([modulo, roles]) => (
-                <tr key={modulo} className="border-b hover:bg-indigo-50 transition">
-                  <td className="px-4 py-2 font-medium text-slate-800 capitalize">
+                <tr
+                  key={modulo}
+                  className="border-b hover:bg-indigo-50 transition"
+                >
+                  <td className="px-10 py-6 font-medium text-slate-800 capitalize">
                     {modulo}
                   </td>
                   {Object.entries(roles).map(([rol, acceso]) => (
@@ -130,6 +153,17 @@ export default function UsuariosPermiso() {
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* ===== Botón guardar cambios ===== */}
+      <div className="mt-8 flex justify-end">
+        <button
+          onClick={handleGuardarCambios}
+          className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white px-6 py-2.5 rounded-lg text-sm font-semibold shadow transition-transform active:scale-95"
+        >
+          <Save size={18} />
+          Guardar Cambios
+        </button>
       </div>
     </div>
   );

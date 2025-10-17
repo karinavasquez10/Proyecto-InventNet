@@ -122,16 +122,16 @@ function ConsultaProductosBody({ theme }) {
     <div className="p-5">
       {/* Progreso */}
       <div className="mb-4">
-        <div className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+        <div className="text-sm font-medium text-slate-700 dark:text-slate-700 mb-2">
           Porcentaje de productos calibrados
         </div>
-        <div className="w-full h-3 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
+        <div className="w-full h-3 bg-slate-500 dark:bg-slate-800 rounded-full overflow-hidden">
           <div
             className="h-3 bg-gradient-to-r from-orange-500 to-fuchsia-500 transition-all"
             style={{ width: `${pctCalibrados}%` }}
           />
         </div>
-        <div className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+        <div className="mt-1 text-xs text-slate-600 dark:text-slate-600">
           {pctCalibrados}%
         </div>
       </div>
@@ -141,18 +141,18 @@ function ConsultaProductosBody({ theme }) {
         className={`rounded-xl p-4 mb-4 shadow-sm border transition ${
           theme === "dark"
             ? "bg-slate-900 border-slate-700"
-            : "bg-white border-slate-200"
+            : "bg-white border-slate-600"
         }`}
       >
         <div className="flex flex-wrap items-center gap-3">
           <div className="text-sm font-semibold">
             Lista de productos ({filtered.length})
           </div>
-          <div className="hidden sm:block w-px h-5 bg-slate-300 dark:bg-slate-700" />
+          <div className="hidden sm:block w-px h-5 bg-slate-600 dark:bg-slate-700" />
 
           {/* Filtro categoría */}
           <div className="flex items-center gap-2">
-            <label className="text-xs text-slate-700 dark:text-slate-300">
+            <label className="text-xs text-slate-700 dark:text-slate-600">
               Categoría
             </label>
             <select
@@ -161,7 +161,7 @@ function ConsultaProductosBody({ theme }) {
               className={`rounded-lg border px-3 py-1.5 text-sm transition
                 ${
                   theme === "dark"
-                    ? "border-slate-700 bg-slate-800 text-slate-100 focus:ring-2 focus:ring-fuchsia-400"
+                    ? "border-slate-700 bg-slate-800 text-slate-500 focus:ring-2 focus:ring-fuchsia-400"
                     : "border-slate-300 bg-white text-slate-800 focus:ring-2 focus:ring-orange-300"
                 }`}
             >
@@ -173,7 +173,7 @@ function ConsultaProductosBody({ theme }) {
 
           {/* Buscador */}
           <div className="flex items-center gap-2">
-            <label className="text-xs text-slate-700 dark:text-slate-300">
+            <label className="text-xs text-slate-700 dark:text-slate-600">
               Buscar
             </label>
             <input
@@ -207,9 +207,7 @@ function ConsultaProductosBody({ theme }) {
                 {t}
               </button>
             ))}
-            <button className="px-3 py-1.5 rounded-full text-xs font-semibold bg-gradient-to-r from-orange-500 to-fuchsia-500 text-white hover:brightness-110">
-              NUEVO
-            </button>
+           
           </div>
         </div>
       </div>
