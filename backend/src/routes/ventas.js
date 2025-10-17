@@ -1,6 +1,7 @@
-const express = require('express');
+import express from "express";
+import pool from "../config/database.js";
+
 const router = express.Router();
-const pool = require('../config/database');
 
 // POST /api/ventas - Crear nueva venta con sus detalles
 router.post('/', async (req, res) => {
@@ -12,7 +13,6 @@ router.post('/', async (req, res) => {
             id_cliente, 
             id_usuario, 
             id_caja, 
-            fecha, 
             subtotal, 
             impuesto, 
             total, 
@@ -27,16 +27,15 @@ router.post('/', async (req, res) => {
             return res.status(400).send('Faltan datos requeridos: id_usuario, id_caja, items');
         }
 
-        // 1. Insertar en tabla ventas
-        const [ventaResult] = await pool.query(
+        // 1. Insertar en tabla ventas (sin fecha, usa DEFAULT CURRENT_TIMESTAMP)
+        const [ventaResult] = await connection.query(
             `INSERT INTO ventas 
-            (id_cliente, id_usuario, id_caja, fecha, subtotal, impuesto, total, metodo_pago, observaciones) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            (id_cliente, id_usuario, id_caja, subtotal, impuesto, total, metodo_pago, observaciones) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 id_cliente || null,
                 id_usuario,
                 id_caja,
-                fecha || new Date().toISOString(),
                 subtotal,
                 impuesto,
                 total,
@@ -47,24 +46,33 @@ router.post('/', async (req, res) => {
 
         const id_venta = ventaResult.insertId;
 
-        // 2. Insertar detalles de venta
+        // 2. Insertar detalles de venta y actualizar stock
         for (const item of items) {
-            await pool.query(
+            // Verificar stock suficiente
+            const [stockCheck] = await connection.query(
+                `SELECT stock_actual FROM productos WHERE id_producto = ?`,
+                [item.id_producto]
+            );
+            if (stockCheck.length === 0 || stockCheck[0].stock_actual < item.cantidad) {
+                await connection.rollback();
+                return res.status(400).send(`Stock insuficiente para producto ID ${item.id_producto}`);
+            }
+
+            await connection.query(
                 `INSERT INTO detalle_ventas 
-                (id_venta, id_producto, cantidad, precio_unitario, descuento, total) 
-                VALUES (?, ?, ?, ?, ?, ?)`,
+                (id_venta, id_producto, cantidad, precio_unitario, descuento) 
+                VALUES (?, ?, ?, ?, ?)`,
                 [
                     id_venta,
                     item.id_producto,
                     item.cantidad,
                     item.precio_unitario,
-                    item.descuento || 0,
-                    item.total
+                    item.descuento || 0
                 ]
             );
 
-            // 3. Actualizar stock del producto
-            await pool.query(
+            // Actualizar stock del producto
+            await connection.query(
                 `UPDATE productos 
                 SET stock_actual = stock_actual - ? 
                 WHERE id_producto = ?`,
@@ -72,15 +80,15 @@ router.post('/', async (req, res) => {
             );
         }
 
-        // 4. Actualizar total_ventas en la caja
-        await pool.query(
+        // 3. Actualizar total_ventas en la caja
+        await connection.query(
             `UPDATE caja 
             SET total_ventas = COALESCE(total_ventas, 0) + ? 
-            WHERE id = ?`,
+            WHERE id_caja = ?`,
             [total, id_caja]
         );
 
-        await pool.commit();
+        await connection.commit();
 
         res.status(201).json({
             success: true,
@@ -89,11 +97,11 @@ router.post('/', async (req, res) => {
         });
 
     } catch (error) {
-        await pool.rollback();
+        await connection.rollback();
         console.error('Error al registrar venta:', error);
         res.status(500).send('Error al registrar venta: ' + error.message);
     } finally {
-        pool.release();
+        connection.release();
     }
 });
 
@@ -105,11 +113,11 @@ router.get('/', async (req, res) => {
                 v.*,
                 c.nombre as nombre_cliente,
                 u.nombre as nombre_usuario,
-                cj.id as numero_caja
+                cj.id_caja as numero_caja
             FROM ventas v
-            LEFT JOIN clientes c ON v.id_cliente = c.id
-            LEFT JOIN usuarios u ON v.id_usuario = u.id
-            LEFT JOIN caja cj ON v.id_caja = cj.id
+            LEFT JOIN clientes c ON v.id_cliente = c.id_cliente
+            LEFT JOIN usuarios u ON v.id_usuario = u.id_usuario
+            LEFT JOIN caja cj ON v.id_caja = cj.id_caja
             ORDER BY v.fecha DESC
         `);
         res.json(rows);
@@ -119,10 +127,10 @@ router.get('/', async (req, res) => {
     }
 });
 
-// GET /api/ventas/:id - Obtener detalle de una venta
-router.get('/:id', async (req, res) => {
+// GET /api/ventas/:id_venta - Obtener detalle de una venta
+router.get('/:id_venta', async (req, res) => {
     try {
-        const { id } = req.params;
+        const { id_venta } = req.params;
         
         // Obtener datos de la venta
         const [ventas] = await pool.query(`
@@ -132,10 +140,10 @@ router.get('/:id', async (req, res) => {
                 c.identificacion,
                 u.nombre as nombre_usuario
             FROM ventas v
-            LEFT JOIN clientes c ON v.id_cliente = c.id
-            LEFT JOIN usuarios u ON v.id_usuario = u.id
-            WHERE v.id = ?
-        `, [id]);
+            LEFT JOIN clientes c ON v.id_cliente = c.id_cliente
+            LEFT JOIN usuarios u ON v.id_usuario = u.id_usuario
+            WHERE v.id_venta = ?
+        `, [id_venta]);
 
         if (ventas.length === 0) {
             return res.status(404).send('Venta no encontrada');
@@ -149,7 +157,7 @@ router.get('/:id', async (req, res) => {
             FROM detalle_ventas dv
             LEFT JOIN productos p ON dv.id_producto = p.id_producto
             WHERE dv.id_venta = ?
-        `, [id]);
+        `, [id_venta]);
 
         res.json({
             venta: ventas[0],

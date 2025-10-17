@@ -65,15 +65,54 @@ const API_URL = "http://localhost:5000/api";
 function ClientesBody({ onClose }) {
   const theme = useSystemTheme();
 
-  // Inicializar rows vacío si no hay MOCK disponible
+  // Estado para la carga y errores
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState(null);
+
+  // Estado para listado de clientes
   const [rows, setRows] = React.useState([]);
+
+  // Función para cargar clientes de la API
+  const fetchClientes = React.useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`${API_URL}/clientes`);
+      if (!res.ok) throw new Error("Error al cargar clientes");
+      const data = await res.json();
+      // Normalizar claves si fuese necesario
+      setRows(
+        Array.isArray(data)
+          ? data.map((c) => ({
+              id: c.id ?? c._id ?? c.doc ?? c.identificacion ?? Math.random(),
+              doc: c.doc ?? c.identificacion ?? "",
+              nombres: c.nombres ?? c.nombre ?? "",
+              // apellidos: c.apellidos ?? "", // Eliminada columna Apellidos
+              telefono: c.telefono ?? "",
+              email: c.email ?? c.correo ?? "",
+              direccion: c.direccion ?? "",
+              tipo: c.tipo ?? "",
+            }))
+          : []
+      );
+    } catch (e) {
+      setError(e.message || "Error al cargar");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Cargar clientes al montar componente
+  React.useEffect(() => {
+    fetchClientes();
+  }, [fetchClientes]);
+
   const [q, setQ] = React.useState("");
   const [showCreate, setShowCreate] = React.useState(false);
   // Asegurarse de que las claves del formulario coincidan con las usadas en la tabla
   const [form, setForm] = React.useState({
     doc: "",
     nombres: "",
-    apellidos: "",
     telefono: "",
     email: "",
     direccion: "",
@@ -91,41 +130,68 @@ function ClientesBody({ onClose }) {
   const pageData = filtered.slice((page - 1) * perPage, page * perPage);
   const go = (p) => setPage(Math.min(Math.max(1, p), totalPages));
 
-  const handleCreate = () => {
+  // CREAR cliente (ejemplo local, debería mandarse a la API normalmente)
+  const handleCreate = async () => {
     if (!form.doc || !form.nombres) {
       alert("Documento y Nombres son obligatorios");
       return;
     }
-    const id = rows.length ? Math.max(...rows.map((r) => r.id)) + 1 : 1;
-    setRows((r) => [{ id, ...form }, ...r]);
-    setForm({ doc: "", nombres: "", apellidos: "", telefono: "", email: "", direccion: "" });
-    setShowCreate(false);
-    setPage(1);
+    // Enviar al servidor
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`${API_URL}/clientes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...form,
+          telefono: form.telefono,
+          email: form.email,
+          direccion: form.direccion,
+          tipo: form.tipo,
+        }),
+      });
+      if (!res.ok) {
+        throw new Error("No se pudo crear el cliente");
+      }
+      // Opcional: podrías obtener el nuevo cliente de la API y agregar
+      await fetchClientes();
+      setForm({ doc: "", nombres: "", telefono: "", email: "", direccion: "", tipo: "" });
+      setShowCreate(false);
+      setPage(1);
+    } catch (e) {
+      setError(e.message || "Error al crear");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Recargar clientes al pulsar el botón actualizar
+  const handleRefresh = () => {
+    fetchClientes();
   };
 
   return (
     <>
       {/* Header */}
-
-    <div
-      className={`h-14 px-5 flex items-center justify-between text-white transition-colors duration-300 shadow-sm ${
-        theme === "dark"
-          ? "bg-gradient-to-r from-orange-500 via-pink-500 to-fuchsia-500"
-          : "bg-gradient-to-r from-orange-400 via-pink-400 to-fuchsia-500"
-      }`}
-    >
-      <div className="flex items-center gap-3">
-        <h2 className="text-base font-semibold">Gestión de Clientes</h2>
-        <span className="text-[11px] opacity-80 hidden sm:inline">InventNet</span>
-      </div>
-      <button
-        onClick={onClose}
-        className="p-2 rounded-md hover:bg-white/20 transition"
+      <div
+        className={`h-14 px-5 flex items-center justify-between text-white transition-colors duration-300 shadow-sm ${
+          theme === "dark"
+            ? "bg-gradient-to-r from-orange-500 via-pink-500 to-fuchsia-500"
+            : "bg-gradient-to-r from-orange-400 via-pink-400 to-fuchsia-500"
+        }`}
       >
-        <X size={18} />
-      </button>
-    </div>
-
+        <div className="flex items-center gap-3">
+          <h2 className="text-base font-semibold">Gestión de Clientes</h2>
+          <span className="text-[11px] opacity-80 hidden sm:inline">InventNet</span>
+        </div>
+        <button
+          onClick={onClose}
+          className="p-2 rounded-md hover:bg-white/20 transition"
+        >
+          <X size={18} />
+        </button>
+      </div>
 
       {/* Body */}
       <div
@@ -139,7 +205,7 @@ function ClientesBody({ onClose }) {
         <div className="flex flex-wrap items-center justify-between mb-4 gap-2">
           <div className="flex flex-wrap gap-2">
             <SmallBtn variant="soft"><QrCode size={14} /> QR Auto Registro</SmallBtn>
-            <SmallBtn variant="soft"><RefreshCcw size={14} /> Actualizar</SmallBtn>
+            <SmallBtn variant="soft" onClick={handleRefresh}><RefreshCcw size={14} /> Actualizar</SmallBtn>
             <SmallBtn variant="soft"><Upload size={14} /> Creación Masiva</SmallBtn>
           </div>
 
@@ -162,6 +228,18 @@ function ClientesBody({ onClose }) {
           </div>
         </div>
 
+        {/* Errores / loading */}
+        {loading && (
+          <div className="flex justify-center items-center py-8">
+            <span className="text-orange-500 font-semibold animate-pulse">Cargando...</span>
+          </div>
+        )}
+        {error && (
+          <div className="flex justify-center items-center py-4">
+            <span className="text-red-500 font-semibold">{error}</span>
+          </div>
+        )}
+
         {/* Crear cliente */}
         {showCreate && (
           <div className="border border-orange-200 dark:border-slate-700 rounded-xl p-4 bg-white dark:bg-slate-800 shadow-sm mb-5">
@@ -169,21 +247,9 @@ function ClientesBody({ onClose }) {
               Nuevo Cliente
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              {/*
-                ["Número documento", "identificacion"],
-                ["Nombre completo", "nombre"],
-                ["Dirección", "direccion"],
-                ["Teléfono", "telefono"],
-                ["Correo electrónico", "correo"],
-                ["Tipo de cliente", "tipo"],
-              */}
-              {/*
-                Cambié las claves aquí para que coincidan con las usadas en la tabla
-              */}
-              { [
+              {[
                 ["Número documento", "doc"],
                 ["Nombre completo", "nombres"],
-                ["Apellidos", "apellidos"],
                 ["Dirección", "direccion"],
                 ["Teléfono", "telefono"],
                 ["Correo electrónico", "email"],
@@ -198,7 +264,7 @@ function ClientesBody({ onClose }) {
                     className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
                   />
                 </Field>
-              )) }
+              ))}
             </div>
             <div className="mt-4 flex justify-end gap-2">
               <SmallBtn variant="outline" onClick={() => setShowCreate(false)}>
@@ -229,7 +295,6 @@ function ClientesBody({ onClose }) {
                 <Th>#</Th>
                 <Th>Identificación</Th>
                 <Th>Nombres</Th>
-                <Th>Apellidos</Th>
                 <Th>Teléfono</Th>
                 <Th>Correo</Th>
                 <Th>Dirección</Th>
@@ -239,7 +304,6 @@ function ClientesBody({ onClose }) {
             <tbody className="divide-y divide-orange-100 dark:divide-slate-800">
               {pageData.map((c, i) => (
                 <tr
-
                   key={c.id || i}
                   className={`transition ${
                     theme === "dark"
@@ -250,21 +314,20 @@ function ClientesBody({ onClose }) {
                   <Td>{(page - 1) * perPage + i + 1}</Td>
                   <Td className="font-medium">{c.doc}</Td>
                   <Td>{c.nombres}</Td>
-                  <Td>{c.apellidos}</Td>
                   <Td>{c.telefono}</Td>
                   <Td>{c.email}</Td>
                   <Td>{c.direccion}</Td>
                   <Td className="text-center">
-                    <div className="flex items-center justify-center gap-2">
+                    <div className="flex justify-center gap-2"> {/* Centrado botones */}
                       <SmallBtn variant="outline">✏️</SmallBtn>
                       <SmallBtn variant="soft">👁️</SmallBtn>
                     </div>
                   </Td>
                 </tr>
               ))}
-              {!pageData.length && (
+              {!pageData.length && !loading && (
                 <tr>
-                  <Td colSpan={8} className="text-center py-10 text-slate-500 dark:text-slate-400">
+                  <Td colSpan={7} className="text-center py-10 text-slate-500 dark:text-slate-400">
                     No se encontraron registros.
                   </Td>
                 </tr>

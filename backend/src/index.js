@@ -7,6 +7,9 @@ import categoriasRoutes from "./routes/categorias.js";
 import perfilRoutes from "./routes/perfiles.js";
 import clientesRoutes from "./routes/clientes.js";
 import configRoutes from "./routes/config.js";
+import cajasRoutes from "./routes/cajas.js";
+import sucursalesRoutes from "./routes/sucursales.js";
+import ventasRoutes from "./routes/ventas.js";
 
 dotenv.config();
 
@@ -24,6 +27,9 @@ app.use("/api/categorias", categoriasRoutes);
 app.use("/api/perfil", perfilRoutes);
 app.use("/api/clientes", clientesRoutes);
 app.use("/api/config", configRoutes);
+app.use("/api/cajas", cajasRoutes);
+app.use("/api/sucursales", sucursalesRoutes);
+app.use("/api/ventas", ventasRoutes);
 
 
 // Añade un manejador de errores general

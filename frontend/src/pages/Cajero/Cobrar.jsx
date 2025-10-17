@@ -61,19 +61,23 @@ function Cobrar({ initialCliente = null, carrito = [], usuario, idCaja, onClose 
       .then((d) => {
         if (d && d.impuesto) setImpuestoRate(parseFloat(d.impuesto));
       })
-      .catch(() => {});
+      .catch((err) => console.warn("Error cargando tasa de impuesto:", err)); // Silencioso
   }, []);
 
   const handleNumberClick = (num) => setEfectivo(efectivo + num);
   const handleClear = () => setEfectivo("");
   const handleBackspace = () => setEfectivo(efectivo.slice(0, -1));
 
-  function calcularSubtotal() {
+  // Cálculos corregidos: subtotal bruto sin desc global
+  function calcularSubtotalBruto() {
     return items.reduce(
       (s, it) => s + it.precio_unitario * it.cantidad - (it.descuento || 0),
       0
-    ) - descuentoGlobal;
+    );
   }
+
+  const subtotalBruto = calcularSubtotalBruto();
+  const subtotalNeto = subtotalBruto - descuentoGlobal;
   
   function calcularImpuesto(subtotal) {
     return subtotal * impuestoRate;
@@ -83,9 +87,8 @@ function Cobrar({ initialCliente = null, carrito = [], usuario, idCaja, onClose 
     return subtotal + impuesto;
   }
 
-  const subtotal = calcularSubtotal();
-  const impuesto = calcularImpuesto(subtotal);
-  const total = calcularTotal(subtotal, impuesto);
+  const impuesto = calcularImpuesto(subtotalNeto);
+  const total = calcularTotal(subtotalNeto, impuesto);
 
   const efectivoInt = parseInt(efectivo || 0);
   const cambio = efectivoInt - total;
@@ -128,7 +131,7 @@ function Cobrar({ initialCliente = null, carrito = [], usuario, idCaja, onClose 
   }
 
   function aplicarDescuentoPorcentaje(porcentaje) {
-    const descuento = (subtotal * porcentaje) / 100;
+    const descuento = (subtotalBruto * porcentaje) / 100;
     setDescuentoGlobal(descuento);
   }
 
@@ -138,20 +141,19 @@ function Cobrar({ initialCliente = null, carrito = [], usuario, idCaja, onClose 
       return;
     }
     
-    const subtotalFinal = calcularSubtotal();
+    const subtotalFinal = subtotalNeto;
     const impuestoFinal = calcularImpuesto(subtotalFinal);
     const totalFinal = calcularTotal(subtotalFinal, impuestoFinal);
     
     const payload = {
-      id_cliente: cliente ? cliente.id : null,
-      id_usuario: usuario.id,
+      id_cliente: cliente ? cliente.id_cliente || cliente.id : null, // Consistente con DB
+      id_usuario: usuario.id_usuario || usuario.id, // Asumir id_usuario en DB
       id_caja: idCaja,
-      fecha: new Date().toISOString(),
       subtotal: subtotalFinal,
       impuesto: impuestoFinal,
       total: totalFinal,
       metodo_pago,
-      observaciones: `Descuento global: ${money(descuentoGlobal)}`,
+      observaciones: `Descuento global: ${descuentoGlobal.toLocaleString('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 })}`,
       items: items.map((it) => ({
         id_producto: it.id_producto,
         cantidad: it.cantidad,
@@ -161,26 +163,30 @@ function Cobrar({ initialCliente = null, carrito = [], usuario, idCaja, onClose 
       })),
     };
     
-    const res = await fetch("http://localhost:5000/api/ventas", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    
-    if (!res.ok) {
-      const t = await res.text();
-      alert("Error al guardar venta: " + t);
-      return;
+    try {
+      const res = await fetch("http://localhost:5000/api/ventas", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      
+      if (!res.ok) {
+        const errorText = await res.text();
+        throw new Error(errorText || `Error ${res.status}: No se pudo guardar la venta.`);
+      }
+      
+      const data = await res.json();
+      alert(`✅ Venta registrada exitosamente. ID: ${data.id_venta}`);
+      
+      if (imprimir) {
+        setTimeout(() => window.print?.(), 300);
+      }
+      
+      onClose();
+    } catch (err) {
+      console.error("Error en confirmarVenta:", err);
+      alert(`❌ ${err.message}`);
     }
-    
-    const data = await res.json();
-    alert("Venta registrada exitosamente. ID: " + data.id_venta);
-    
-    if (imprimir) {
-      setTimeout(() => window.print?.(), 300);
-    }
-    
-    onClose();
   }
 
   return (
@@ -227,9 +233,9 @@ function Cobrar({ initialCliente = null, carrito = [], usuario, idCaja, onClose 
 
             <div className="space-y-3 text-sm">
               <InfoRow label="Tipo de pago" value="CONTADO" />
-              <InfoRow label="Sub Total" value={money(subtotal + descuentoGlobal)} />
+              <InfoRow label="Sub Total" value={money(subtotalBruto)} /> {/* Corregido: bruto */}
               <InfoRow label="Descuento Global" value={money(descuentoGlobal)} />
-              <InfoRow label="Subtotal con Desc." value={money(subtotal)} />
+              <InfoRow label="Subtotal Neto" value={money(subtotalNeto)} /> {/* Renombrado para claridad */}
               <InfoRow label="IVA (19%)" value={money(impuesto)} />
               
               <div className="flex justify-between items-center pt-2 border-t border-slate-200 dark:border-slate-700">
