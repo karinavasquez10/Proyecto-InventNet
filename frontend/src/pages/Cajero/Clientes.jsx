@@ -46,10 +46,7 @@ function ModalShell({ children, onClose }) {
   }, [onClose]);
 
   return (
-    <div
-      className="fixed inset-0 z-[60] flex items-center justify-center"
-      onClick={onClose}
-    >
+    <div className="fixed inset-0 z-[60] flex items-center justify-center" onClick={onClose}>
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
       <div
         className="relative w-[95vw] max-w-[1200px] h-[88vh] rounded-2xl shadow-2xl overflow-hidden grid grid-rows-[auto,1fr]
@@ -63,20 +60,24 @@ function ModalShell({ children, onClose }) {
 }
 
 /* =============== Cuerpo del Módulo Clientes =============== */
-const MOCK = [
-  { id: 1, doc: "10880001", nombres: "Ana María", apellidos: "Hoyos", telefono: "3001112233", email: "ana@correo.com", direccion: "Cra 12 #34-56" },
-  { id: 2, doc: "10880002", nombres: "Karen", apellidos: "Hoyos", telefono: "3002223344", email: "karen@correo.com", direccion: "Cl 7 # 8-90" },
-  { id: 3, doc: "10880003", nombres: "Carlos", apellidos: "Gómez", telefono: "3125558899", email: "carlos@correo.com", direccion: "Av. 30 # 12-34" },
-];
+const API_URL = "http://localhost:5000/api";
 
 function ClientesBody({ onClose }) {
   const theme = useSystemTheme();
 
-  const [rows, setRows] = React.useState(MOCK);
+  // Inicializar rows vacío si no hay MOCK disponible
+  const [rows, setRows] = React.useState([]);
   const [q, setQ] = React.useState("");
   const [showCreate, setShowCreate] = React.useState(false);
+  // Asegurarse de que las claves del formulario coincidan con las usadas en la tabla
   const [form, setForm] = React.useState({
-    doc: "", nombres: "", apellidos: "", telefono: "", email: "", direccion: ""
+    doc: "",
+    nombres: "",
+    apellidos: "",
+    telefono: "",
+    email: "",
+    direccion: "",
+    tipo: ""
   });
 
   const [page, setPage] = React.useState(1);
@@ -168,24 +169,34 @@ function ClientesBody({ onClose }) {
               Nuevo Cliente
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              {[
-                ["Número documento", "doc"],
-                ["Nombres", "nombres"],
-                ["Apellidos", "apellidos"],
-                ["Teléfono", "telefono"],
-                ["Email", "email"],
+              {/*
+                ["Número documento", "identificacion"],
+                ["Nombre completo", "nombre"],
                 ["Dirección", "direccion"],
+                ["Teléfono", "telefono"],
+                ["Correo electrónico", "correo"],
+                ["Tipo de cliente", "tipo"],
+              */}
+              {/*
+                Cambié las claves aquí para que coincidan con las usadas en la tabla
+              */}
+              { [
+                ["Número documento", "doc"],
+                ["Nombre completo", "nombres"],
+                ["Apellidos", "apellidos"],
+                ["Dirección", "direccion"],
+                ["Teléfono", "telefono"],
+                ["Correo electrónico", "email"],
+                ["Tipo de cliente", "tipo"],
               ].map(([label, key]) => (
                 <Field key={key} label={label}>
                   <input
-                    value={form[key]}
-                    onChange={(e) =>
-                      setForm({ ...form, [key]: e.target.value })
-                    }
+                    value={form[key] || ""}
+                    onChange={(e) => setForm({ ...form, [key]: e.target.value })}
                     className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
                   />
                 </Field>
-              ))}
+              )) }
             </div>
             <div className="mt-4 flex justify-end gap-2">
               <SmallBtn variant="outline" onClick={() => setShowCreate(false)}>
@@ -214,19 +225,19 @@ function ClientesBody({ onClose }) {
             >
               <tr>
                 <Th>#</Th>
-                <Th>Documento</Th>
+                <Th>Identificación</Th>
                 <Th>Nombres</Th>
                 <Th>Apellidos</Th>
                 <Th>Teléfono</Th>
-                <Th>Email</Th>
+                <Th>Correo</Th>
                 <Th>Dirección</Th>
-                <Th className="text-center w-28">Acciones</Th>
+                <Th className="text-center">Acciones</Th>
               </tr>
             </thead>
             <tbody className="divide-y divide-orange-100 dark:divide-slate-800">
               {pageData.map((c, i) => (
                 <tr
-                  key={c.id}
+                  key={c.id || i}
                   className={`transition ${
                     theme === "dark"
                       ? "hover:bg-slate-800 text-slate-200"
@@ -250,10 +261,7 @@ function ClientesBody({ onClose }) {
               ))}
               {!pageData.length && (
                 <tr>
-                  <Td
-                    colSpan={8}
-                    className="text-center py-10 text-slate-500 dark:text-slate-400"
-                  >
+                  <Td colSpan={8} className="text-center py-10 text-slate-500 dark:text-slate-400">
                     No se encontraron registros.
                   </Td>
                 </tr>
@@ -337,5 +345,4 @@ function PagerBtn({ children, onClick, active = false }) {
   );
 }
 
-/* =============== export default =============== */
 export default Clientes;

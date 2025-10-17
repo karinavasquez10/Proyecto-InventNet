@@ -1,5 +1,4 @@
-import React, { useState, useEffect } from "react";
-// import { useNavigate } from "react-router-dom";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Plus,
   Minus,
@@ -10,8 +9,8 @@ import {
   Archive,
   Moon,
   Sun,
-  User,
   LogOut,
+  X,
 } from "lucide-react";
 import Cobrar from "./Cobrar";
 import Catalogo from "./Catalogo";
@@ -22,7 +21,64 @@ import AbrirCaja from "./AbrirCaja";
 import Clientes from "./Clientes";
 import PerfilCajera from "./PerfilCajera";
 
-const POSHome = () => {
+// Helper para obtener cloud name
+const cloudName = (
+  import.meta.env.VITE_CLOUDINARY_CLOUD_NAME ||
+  import.meta.env.CLOUDINARY_CLOUD_NAME ||
+  ""
+);
+
+function useProfilePhoto(userId) {
+  const [photo, setPhoto] = useState("");
+  const pollingRef = useRef();
+
+  useEffect(() => {
+    let mounted = true;
+    const fetchPhoto = async () => {
+      if (!userId) {
+        setPhoto("");
+        return;
+      }
+      try {
+        const res = await fetch(`http://localhost:5000/api/perfil/${userId}?_t=${Date.now()}`);
+        const data = await res.json();
+        if (data?.foto_perfil && cloudName) {
+          setPhoto(`https://res.cloudinary.com/${cloudName}/image/upload/${data.foto_perfil}`);
+        } else {
+          setPhoto("");
+        }
+      } catch {
+        setPhoto("");
+      }
+    };
+
+    fetchPhoto();
+    pollingRef.current = setInterval(fetchPhoto, 15000);
+
+    return () => {
+      mounted = false;
+      clearInterval(pollingRef.current);
+    };
+  }, [userId]);
+
+  const refreshPhoto = () => {
+    if (userId) {
+      fetch(`http://localhost:5000/api/perfil/${userId}?_t=${Date.now()}`)
+        .then((r) => r.json())
+        .then((data) => {
+          if (data?.foto_perfil && cloudName) {
+            setPhoto(`https://res.cloudinary.com/${cloudName}/image/upload/${data.foto_perfil}`);
+          }
+        });
+    } else {
+      setPhoto("");
+    }
+  };
+
+  return [photo, refreshPhoto];
+}
+
+function Home() {
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([{ id: null, nombre: "Todas" }]);
   const [cart, setCart] = useState([]);
@@ -35,12 +91,12 @@ const POSHome = () => {
   const [showInventario, setShowInventario] = useState(false);
   const [showAbrirCaja, setShowAbrirCaja] = useState(false);
   const [showClientes, setShowClientes] = useState(false);
-    const [showPerfilCajera, setShowPerfilCajera] = useState(false);
-   const navigate = useNavigate();
-
-  // Perfil
+  const [showPerfilCajera, setShowPerfilCajera] = useState(false);
+  const [clienteSeleccionado, setClienteSeleccionado] = useState(null);
+  const [showSelectorCliente, setShowSelectorCliente] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
-  // Datos del usuario autenticado (desde localStorage)
+
+  // Datos del usuario autenticado
   const storedUser = (() => {
     try { return JSON.parse(localStorage.getItem("user") || "null"); } catch { return null; }
   })();
@@ -51,13 +107,20 @@ const POSHome = () => {
     id: storedUser?.id,
   };
 
-  // Foto de perfil del usuario
-  const [profilePhoto, setProfilePhoto] = useState("");
+  // Foto de perfil
+  const [profilePhoto, refreshProfilePhoto] = useProfilePhoto(cajero.id);
 
-  // Helper para obtener cloud name (se usa fuera del efecto)
-  const cloudName = (import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || import.meta.env.CLOUDINARY_CLOUD_NAME || "");
-
-  // 🌗 Tema
+  // Leer caja abierta
+  const cajaAbierta = (() => {
+    try {
+      return JSON.parse(localStorage.getItem("caja_abierta") || "null");
+    } catch {
+      return null;
+    }
+  })();
+  const idCajaAbierta = cajaAbierta?.id || cajaAbierta?.id_caja || null;
+  
+  // Tema
   const [theme, setTheme] = useState(localStorage.getItem("theme") || "light");
   const toggleTheme = () => {
     const newTheme = theme === "light" ? "dark" : "light";
@@ -68,7 +131,7 @@ const POSHome = () => {
     document.documentElement.classList.toggle("dark", theme === "dark");
   }, [theme]);
 
-  // 🔄 Cargar productos/categorías
+  // Cargar productos/categorías
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -88,10 +151,9 @@ const POSHome = () => {
           price: p.precio_venta,
           category: p.id_categoria,
           stock: p.stock_actual,
-          image: "🛍️",
+          image: "🛒",
         }));
 
-        // Corrección: Mapear categoriesData para usar 'id' en lugar de 'id_categoria'
         const formattedCategories = categoriesData.map((cat) => ({
           id: cat.id_categoria,
           nombre: cat.nombre,
@@ -106,27 +168,13 @@ const POSHome = () => {
     fetchData();
   }, []);
 
-  // Cargar foto_perfil del usuario
-  useEffect(() => {
-    const userId = cajero.id;
-    if (!userId) return;
-    fetch(`http://localhost:5000/api/perfil/${userId}`)
-      .then((r) => r.json())
-      .then((data) => {
-        if (data?.foto_perfil && cloudName) {
-          setProfilePhoto(`https://res.cloudinary.com/${cloudName}/image/upload/${data.foto_perfil}`);
-        }
-      })
-      .catch(() => {});
-  }, [cajero.id, cloudName]);
-
-  // 🔍 Filtrar productos
+  // Filtrar productos
   const categoryId = categories.find((cat) => cat.nombre === selectedCategory)?.id;
   const filteredProducts = products.filter((p) => 
     (selectedCategory === "Todas" || p.category === categoryId) && p.stock > 0
   );
 
-  // 🛒 Funciones carrito
+  // Funciones carrito
   const addToCart = (p) => {
     setCart((prev) => {
       const existing = prev.find((i) => i.id === p.id);
@@ -150,7 +198,6 @@ const POSHome = () => {
 
   const total = cart.reduce((sum, i) => sum + i.price * i.quantity, 0);
 
-  // ==================== UI ====================
   return (
     <div
       className={`flex h-screen transition-colors duration-300 ${
@@ -209,6 +256,7 @@ const POSHome = () => {
             <div
               className="flex items-center gap-2 cursor-pointer"
               onClick={() => setShowProfile(!showProfile)}
+              title="Ir al perfil"
             >
               {profilePhoto ? (
                 <img src={profilePhoto} alt="Perfil" className="w-10 h-10 rounded-full object-cover border" />
@@ -226,12 +274,12 @@ const POSHome = () => {
 
           <div className="flex flex-wrap gap-2 justify-center sm:justify-start">
             {[
-              ["Clientes", () => setShowClientes(true), <Users size={16} />],
-              ["Abrir Caja", () => setShowAbrirCaja(true), <Box size={16} />],
-              ["Cerrar Caja", () => setShowCerrarCaja(true), <Box size={16} />],
-              ["Facturas", () => setShowFacturas(true), <Archive size={16} />],
-              ["Catálogo", () => setShowCatalogo(true), <Archive size={16} />],
-              ["Inventario", () => setShowInventario(true), <Archive size={16} />],
+              ["Clientes", () => setShowClientes(true), <Users key="users" size={16} />],
+              ["Abrir Caja", () => setShowAbrirCaja(true), <Box key="box1" size={16} />],
+              ["Cerrar Caja", () => setShowCerrarCaja(true), <Box key="box2" size={16} />],
+              ["Facturas", () => setShowFacturas(true), <Archive key="archive1" size={16} />],
+              ["Catálogo", () => setShowCatalogo(true), <Archive key="archive2" size={16} />],
+              ["Inventario", () => setShowInventario(true), <Archive key="archive3" size={16} />],
             ].map(([label, action, icon]) => (
               <button
                 key={label}
@@ -288,7 +336,7 @@ const POSHome = () => {
         </section>
       </main>
 
-      {/* ===== Factura (más angosta) ===== */}
+      {/* ===== Factura ===== */}
       <aside
         className={`w-80 flex flex-col border-l shadow-lg transition ${
           theme === "dark"
@@ -398,6 +446,37 @@ const POSHome = () => {
               : "border-orange-100 bg-white"
           }`}
         >
+          {/* Selector de Cliente */}
+          <div className="mb-3">
+            {clienteSeleccionado ? (
+              <div className={`p-2 rounded-lg flex items-center justify-between ${
+                theme === "dark" ? "bg-slate-800 border border-slate-700" : "bg-orange-50 border border-orange-200"
+              }`}>
+                <div className="text-sm">
+                  <div className="font-semibold">{clienteSeleccionado.nombre}</div>
+                  <div className="text-xs opacity-70">{clienteSeleccionado.identificacion}</div>
+                </div>
+                <button
+                  onClick={() => setClienteSeleccionado(null)}
+                  className="text-rose-500 hover:text-rose-600"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setShowSelectorCliente(true)}
+                className={`w-full py-2 rounded-lg border text-sm font-medium transition ${
+                  theme === "dark"
+                    ? "border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-300"
+                    : "border-orange-200 bg-white hover:bg-orange-50 text-orange-700"
+                }`}
+              >
+                + Seleccionar Cliente
+              </button>
+            )}
+          </div>
+
           <div className="flex justify-between items-center mb-4">
             <span className="text-lg font-bold">Total:</span>
             <span
@@ -425,7 +504,6 @@ const POSHome = () => {
               theme === "dark" ? "bg-slate-900 text-white" : "bg-white"
             }`}
           >
-            {/* Encabezado */}
             <div className="flex flex-col items-center gap-2">
               {profilePhoto ? (
                 <img src={profilePhoto} alt="Perfil" className="w-16 h-16 rounded-full object-cover border-4 border-orange-200" />
@@ -439,9 +517,7 @@ const POSHome = () => {
               <p className="text-sm text-slate-400">{cajero.correo}</p>
             </div>
 
-            {/* Botones de acción */}
             <div className="mt-5 space-y-2">
-              {/* 👉 Ver perfil completo */}
               <button
                 onClick={() => {
                   setShowProfile(false);
@@ -452,15 +528,16 @@ const POSHome = () => {
                 Ver perfil completo
               </button>
 
-        {/* Cerrar sesión */}
-        <button
-          onClick={() => window.location.reload()}
-          className="w-full py-2 flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg font-semibold transition"
-        >
-          <LogOut size={16} /> Cerrar sesión
-        </button>
+              <button
+                onClick={() => {
+                  localStorage.clear();
+                  window.location.href = "/";
+                }}
+                className="w-full py-2 flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg font-semibold transition"
+              >
+                <LogOut size={16} /> Cerrar sesión
+              </button>
 
-              {/* Cerrar ventana */}
               <button
                 onClick={() => setShowProfile(false)}
                 className="w-full text-sm text-slate-400 hover:text-slate-600 dark:hover:text-gray-300 mt-3"
@@ -474,13 +551,26 @@ const POSHome = () => {
 
       {/* ===== Modal Perfil completo ===== */}
       {showPerfilCajera && (
-        <PerfilCajera onClose={() => setShowPerfilCajera(false)} />
+        <PerfilCajera
+          onClose={() => {
+            setShowPerfilCajera(false);
+            setTimeout(() => {
+              refreshProfilePhoto();
+            }, 50);
+          }}
+        />
       )}
 
       {/* ===== Modales ===== */}
       {showCobrar && (
         <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-50">
-          <Cobrar total={total} onClose={() => setShowCobrar(false)} />
+          <Cobrar
+            initialCliente={clienteSeleccionado}
+            carrito={cart}
+            usuario={storedUser}
+            idCaja={idCajaAbierta}
+            onClose={() => setShowCobrar(false)}
+          />
         </div>
       )}
       {showCatalogo && (
@@ -499,9 +589,130 @@ const POSHome = () => {
       <ConsultaFacturas open={showFacturas} onClose={() => setShowFacturas(false)} />
       <ConsultaProductos open={showInventario} onClose={() => setShowInventario(false)} />
       <Clientes open={showClientes} onClose={() => setShowClientes(false)} />
-      <AbrirCaja open={showAbrirCaja} onClose={() => setShowAbrirCaja(false)} />
+      <AbrirCaja 
+        open={showAbrirCaja} 
+        onClose={() => setShowAbrirCaja(false)}
+        onConfirm={(data) => {
+          fetch('http://localhost:5000/api/cajas', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              id_usuario: data.id_usuario,
+              id_sucursal: 1,
+              fecha_apertura: data.abiertoEn,
+              monto_inicial: data.base,
+              estado: 'abierta'
+            })
+          })
+          .then(r => r.json())
+          .then(caja => {
+            const cajaConId = { ...data, id: caja.id, id_caja: caja.id };
+            localStorage.setItem('caja_abierta', JSON.stringify(cajaConId));
+            alert('Caja abierta exitosamente. ID: ' + caja.id);
+            window.location.reload();
+          })
+          .catch(err => {
+            console.error(err);
+            alert('Error al abrir caja');
+          });
+        }}
+        usuario={cajero}
+      />
+
+      {/* Modal Selector de Cliente */}
+      {showSelectorCliente && (
+        <SelectorCliente
+          onClose={() => setShowSelectorCliente(false)}
+          onSelect={(cliente) => {
+            setClienteSeleccionado(cliente);
+            setShowSelectorCliente(false);
+          }}
+        />
+      )}
     </div>
   );
-};
+}
 
-export default POSHome;
+// Componente Selector de Cliente
+function SelectorCliente({ onClose, onSelect }) {
+  const [clientes, setClientes] = useState([]);
+  const [busqueda, setBusqueda] = useState("");
+  const [loading, setLoading] = useState(true);
+  const theme = document.documentElement.classList.contains("dark") ? "dark" : "light";
+
+  useEffect(() => {
+    fetch('http://localhost:5000/api/clientes')
+      .then(r => r.json())
+      .then(data => {
+        setClientes(data);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, []);
+
+  const clientesFiltrados = clientes.filter(c =>
+    c.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
+    c.identificacion?.includes(busqueda)
+  );
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50" onClick={onClose}>
+      <div
+        className={`w-[500px] max-h-[600px] rounded-2xl shadow-2xl overflow-hidden ${
+          theme === "dark" ? "bg-slate-900 text-white" : "bg-white text-slate-800"
+        }`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="p-4 border-b border-slate-200 dark:border-slate-700">
+          <h3 className="text-lg font-bold mb-3">Seleccionar Cliente</h3>
+          <input
+            type="text"
+            placeholder="Buscar por nombre o identificación..."
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+            className={`w-full px-3 py-2 rounded-lg border ${
+              theme === "dark"
+                ? "bg-slate-800 border-slate-700 text-white"
+                : "bg-white border-slate-300 text-slate-800"
+            }`}
+          />
+        </div>
+        <div className="overflow-y-auto max-h-[400px] p-4 space-y-2">
+          {loading ? (
+            <div className="text-center py-8 text-slate-400">Cargando...</div>
+          ) : clientesFiltrados.length === 0 ? (
+            <div className="text-center py-8 text-slate-400">No se encontraron clientes</div>
+          ) : (
+            clientesFiltrados.map(cliente => (
+              <button
+                key={cliente.id}
+                onClick={() => onSelect(cliente)}
+                className={`w-full p-3 rounded-lg text-left transition ${
+                  theme === "dark"
+                    ? "bg-slate-800 hover:bg-slate-700 border border-slate-700"
+                    : "bg-slate-50 hover:bg-orange-50 border border-slate-200"
+                }`}
+              >
+                <div className="font-semibold">{cliente.nombre}</div>
+                <div className="text-sm opacity-70">{cliente.identificacion}</div>
+                {cliente.telefono && (
+                  <div className="text-xs opacity-60">{cliente.telefono}</div>
+                )}
+              </button>
+            ))
+          )}
+        </div>
+        <div className="p-4 border-t border-slate-200 dark:border-slate-700">
+          <button
+            onClick={onClose}
+            className="w-full py-2 rounded-lg bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 transition"
+          >
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default Home;

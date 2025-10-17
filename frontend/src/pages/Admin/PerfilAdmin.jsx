@@ -1,31 +1,78 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { User, Edit2, Save, Shield, Lock, Camera } from "lucide-react";
 
 export default function PerfilAdmin() {
   const [editing, setEditing] = useState(false);
-  const [foto, setFoto] = useState("https://via.placeholder.com/120");
-  const [admin, setAdmin] = useState({
-    nombre: "Ana Yuliana Hoyos",
-    cargo: "Administradora General",
-    correo: "admin@inventnet.com",
-    telefono: "3201234567",
-    usuario: "admin123",
-    contrasena: "********",
+  const [foto, setFoto] = useState("");
+  const [datos, setDatos] = useState({
+    nombre: "",
+    cargo: "",
+    correo: "",
+    telefono: "",
+    contrasena: "",
+    direccion: "",
+    genero: "",
   });
+  // Obtener ID real desde localStorage (para admin: authUser)
+  const userId = (() => {
+    try { return JSON.parse(localStorage.getItem("authUser") || "null")?.id; } catch { return null; }
+  })();
+
+  useEffect(() => {
+    if (!userId) return;
+    fetch(`http://localhost:5000/api/perfil/${userId}`)
+      .then(res => res.json())
+      .then(data => {
+        setDatos({
+          ...data,
+          contrasena: editing ? (data.contrasena || "") : "********", // Seguridad: no mostrar pass real
+        });
+        if (data.foto_perfil) {
+          const cloud = (import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || import.meta.env.CLOUDINARY_CLOUD_NAME || "");
+          setFoto(`https://res.cloudinary.com/${cloud}/image/upload/${data.foto_perfil}`);
+        }
+      })
+      .catch(() => console.error("Error al cargar perfil"));
+  }, [userId, editing]);
 
   const handleChange = (e) => {
-    setAdmin({ ...admin, [e.target.name]: e.target.value });
+    setDatos({ ...datos, [e.target.name]: e.target.value });
   };
 
   const handleFoto = (e) => {
     const file = e.target.files[0];
-    if (file) setFoto(URL.createObjectURL(file));
+    if (file) setFoto(file); // guardamos el archivo
   };
 
-  const handleGuardar = () => {
-    setEditing(false);
-    alert("✅ Cambios guardados correctamente (simulación).");
+  const handleGuardar = async () => {
+    const formData = new FormData();
+    Object.keys(datos).forEach(k => formData.append(k, datos[k]));
+    if (foto instanceof File) formData.append("foto", foto);
+
+    const res = await fetch(`http://localhost:5000/api/perfil/${userId}`, {
+      method: "PUT",
+      body: formData,
+    });
+
+    const result = await res.json();
+    if (result.message) {
+      alert("✅ Perfil actualizado correctamente");
+      setEditing(false);
+      if (result.foto) {
+        const cloud = (import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || import.meta.env.CLOUDINARY_CLOUD_NAME || "");
+        setFoto(`https://res.cloudinary.com/${cloud}/image/upload/${result.foto}`);
+      }
+    } else {
+      alert("❌ Error al actualizar perfil");
+    }
   };
+
+  // Opciones de género
+  const generoOptions = [
+    "femenino",
+    "masculino",
+    "otro",
+  ];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-pink-50 px-6 sm:px-22 py-10">
@@ -45,11 +92,17 @@ export default function PerfilAdmin() {
           {/* Foto de perfil */}
           <div className="flex flex-col items-center text-center">
             <div className="relative">
-              <img
-                src={foto}
-                alt="Foto de perfil"
-                className="w-32 h-32 object-cover rounded-full border-4 border-orange-200 shadow-md"
-              />
+              {foto ? (
+                <img
+                  src={foto instanceof File ? URL.createObjectURL(foto) : foto}
+                  alt="Foto de perfil"
+                  className="w-32 h-32 object-cover rounded-full border-4 border-orange-200 shadow-md"
+                />
+              ) : (
+                <div className="w-32 h-32 rounded-full bg-gradient-to-r from-orange-500 to-fuchsia-500 flex items-center justify-center text-white text-3xl font-bold border-4 border-orange-200">
+                  {(datos?.nombre?.[0] || "A").toUpperCase()}
+                </div>
+              )}
               {editing && (
                 <label className="absolute bottom-1 right-1 bg-orange-500 text-white p-2 rounded-full shadow cursor-pointer hover:bg-orange-600 transition">
                   <Camera size={16} />
@@ -63,9 +116,9 @@ export default function PerfilAdmin() {
               )}
             </div>
             <h2 className="mt-4 text-xl font-semibold text-slate-800">
-              {admin.nombre}
+              {datos.nombre}
             </h2>
-            <p className="text-sm text-slate-500">{admin.cargo}</p>
+            <p className="text-sm text-slate-500">{datos.cargo}</p>
           </div>
 
           {/* Información del administrador */}
@@ -102,7 +155,7 @@ export default function PerfilAdmin() {
                 <input
                   type="text"
                   name="nombre"
-                  value={admin.nombre}
+                  value={datos.nombre}
                   disabled={!editing}
                   onChange={handleChange}
                   className={`w-full border rounded-lg px-3 py-2 text-sm ${
@@ -120,7 +173,7 @@ export default function PerfilAdmin() {
                 <input
                   type="text"
                   name="cargo"
-                  value={admin.cargo}
+                  value={datos.cargo}
                   disabled={!editing}
                   onChange={handleChange}
                   className={`w-full border rounded-lg px-3 py-2 text-sm ${
@@ -138,7 +191,7 @@ export default function PerfilAdmin() {
                 <input
                   type="email"
                   name="correo"
-                  value={admin.correo}
+                  value={datos.correo}
                   disabled={!editing}
                   onChange={handleChange}
                   className={`w-full border rounded-lg px-3 py-2 text-sm ${
@@ -156,25 +209,7 @@ export default function PerfilAdmin() {
                 <input
                   type="text"
                   name="telefono"
-                  value={admin.telefono}
-                  disabled={!editing}
-                  onChange={handleChange}
-                  className={`w-full border rounded-lg px-3 py-2 text-sm ${
-                    editing
-                      ? "focus:ring-2 focus:ring-orange-200 focus:border-orange-300"
-                      : "bg-slate-50 text-slate-600"
-                  }`}
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">
-                  Usuario
-                </label>
-                <input
-                  type="text"
-                  name="usuario"
-                  value={admin.usuario}
+                  value={datos.telefono}
                   disabled={!editing}
                   onChange={handleChange}
                   className={`w-full border rounded-lg px-3 py-2 text-sm ${
@@ -193,7 +228,7 @@ export default function PerfilAdmin() {
                   <input
                     type="password"
                     name="contrasena"
-                    value={admin.contrasena}
+                    value={datos.contrasena}
                     disabled={!editing}
                     onChange={handleChange}
                     className={`w-full border rounded-lg px-3 py-2 text-sm ${
@@ -208,6 +243,48 @@ export default function PerfilAdmin() {
                     </button>
                   )}
                 </div>
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className="block text-sm font-medium text-slate-600 mb-1">
+                  Dirección
+                </label>
+                <input
+                  type="text"
+                  name="direccion"
+                  value={datos.direccion}
+                  disabled={!editing}
+                  onChange={handleChange}
+                  className={`w-full border rounded-lg px-3 py-2 text-sm ${
+                    editing
+                      ? "focus:ring-2 focus:ring-orange-200 focus:border-orange-300"
+                      : "bg-slate-50 text-slate-600"
+                  }`}
+                />
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className="block text-sm font-medium text-slate-600 mb-1">
+                  Género
+                </label>
+                <select
+                  name="genero"
+                  value={datos.genero !== undefined && datos.genero !== null ? datos.genero : ""}
+                  disabled={!editing}
+                  onChange={handleChange}
+                  className={`w-full border rounded-lg px-3 py-2 text-sm ${
+                    editing
+                      ? "focus:ring-2 focus:ring-orange-200 focus:border-orange-300"
+                      : "bg-slate-50 text-slate-600"
+                  }`}
+                >
+                  <option value="">Selecciona género</option>
+                  {generoOptions.map(opt => (
+                    <option key={opt} value={opt}>
+                      {opt.charAt(0).toUpperCase() + opt.slice(1)}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
 

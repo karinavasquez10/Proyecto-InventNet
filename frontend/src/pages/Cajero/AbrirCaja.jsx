@@ -24,11 +24,11 @@ function useSystemTheme() {
 }
 
 /* ====================== Modal público ====================== */
-function AbrirCaja({ open, onClose, onConfirm }) {
+function AbrirCaja({ open, onClose, usuario }) {
   if (!open) return null;
   return createPortal(
     <ModalShell onClose={onClose}>
-      <AbrirCajaBody onClose={onClose} onConfirm={onConfirm} />
+      <AbrirCajaBody onClose={onClose} usuario={usuario} />
     </ModalShell>,
     document.body
   );
@@ -61,7 +61,7 @@ function ModalShell({ children, onClose }) {
   );
 }
 
-/* ====================== Utilidades ====================== */
+/* ====================== Contenido principal ====================== */
 const money = (n) =>
   (Number(n) || 0).toLocaleString("es-CO", {
     style: "currency",
@@ -82,16 +82,18 @@ const DENOMS = [
   { label: "$100", value: 100 },
 ];
 
-/* ====================== Cuerpo del modal ====================== */
-function AbrirCajaBody({ onClose, onConfirm }) {
+const API_URL = "http://localhost:5000/api";
+
+function AbrirCajaBody({ onClose, usuario }) {
   const theme = useSystemTheme();
   const now = new Date();
-  const [cajero, setCajero] = React.useState("");
+  const [cajero, setCajero] = React.useState(usuario?.nombre || "");
   const [sede, setSede] = React.useState("Principal");
   const [caja, setCaja] = React.useState("Caja 1");
   const [base, setBase] = React.useState(0);
   const [obs, setObs] = React.useState("");
   const [denoms, setDenoms] = React.useState(DENOMS.map((d) => ({ ...d, qty: 0 })));
+  const [loading, setLoading] = React.useState(false);
 
   const totalDesglose = denoms.reduce((s, d) => s + d.qty * d.value, 0);
   const mismatch = base > 0 && totalDesglose > 0 && totalDesglose !== Number(base);
@@ -103,28 +105,36 @@ function AbrirCajaBody({ onClose, onConfirm }) {
 
   const setFromDesglose = () => setBase(totalDesglose);
 
-  const handleSubmit = () => {
-    if (!cajero) return alert("Ingresa el nombre del cajero.");
+  const handleSubmit = async () => {
+    if (!cajero) return alert("El nombre del cajero es requerido.");
     if (!base || Number(base) <= 0) return alert("Ingresa el valor de base.");
     if (mismatch && !confirm("La suma del desglose es diferente a la base. ¿Continuar?")) return;
 
     const payload = {
-      abiertoEn: now.toISOString(),
-      cajero,
-      sede,
-      caja,
-      base: Number(base),
-      desglose: denoms.filter((d) => d.qty > 0).map(({ label, value, qty }) => ({ label, value, qty })),
+      id_usuario: usuario?.id || 1,
+      id_sucursal: 1,
+      fecha_apertura: new Date().toISOString(),
+      monto_inicial: Number(base),
+      estado: "abierta",
       observaciones: obs,
-      estado: "ABIERTA",
     };
 
     try {
-      localStorage.setItem("caja_abierta", JSON.stringify(payload));
-    } catch {}
-
-    onConfirm?.(payload);
-    onClose?.();
+      setLoading(true);
+      const res = await fetch(`${API_URL}/cajas`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      alert(`✅ Caja abierta con éxito (ID: ${data.id})`);
+      onClose();
+    } catch (err) {
+      alert("❌ Error al abrir caja: " + err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -148,11 +158,7 @@ function AbrirCajaBody({ onClose, onConfirm }) {
             {now.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })}
           </p>
         </div>
-        <button
-          onClick={onClose}
-          className="p-2 rounded-md hover:bg-white/20 transition"
-          title="Cerrar"
-        >
+        <button onClick={onClose} className="p-2 rounded-md hover:bg-white/20 transition" title="Cerrar">
           <X size={18} />
         </button>
       </div>
@@ -174,16 +180,28 @@ function AbrirCajaBody({ onClose, onConfirm }) {
           }`}
         >
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Field label={<TagLabel>Cajero</TagLabel>}>
-              <Input value={cajero} onChange={(e) => setCajero(e.target.value)} placeholder="Nombre del cajero" />
+            <Field label="Cajero">
+              <Input
+                className={`${usuario?.nombre ? "bg-slate-100 dark:bg-slate-800" : ""}`}
+                placeholder="Nombre del cajero"
+                value={cajero}
+                onChange={(e) => setCajero(e.target.value)}
+                disabled={!!usuario?.nombre}
+              />
             </Field>
-
-            <Field label={<TagLabel>Sede</TagLabel>}>
-              <Select value={sede} onChange={(e) => setSede(e.target.value)} options={["Principal", "Sucursal Norte", "Sucursal Sur"]} />
+            <Field label="Sede">
+              <select className="input bg-white dark:bg-slate-800" value={sede} onChange={(e) => setSede(e.target.value)}>
+                {["Principal", "Sucursal Norte", "Sucursal Sur"].map((s) => (
+                  <option key={s}>{s}</option>
+                ))}
+              </select>
             </Field>
-
-            <Field label={<TagLabel>Número de Caja</TagLabel>}>
-              <Select value={caja} onChange={(e) => setCaja(e.target.value)} options={["Caja 1", "Caja 2", "Caja 3"]} />
+            <Field label="Número de Caja">
+              <select className="input bg-white dark:bg-slate-800" value={caja} onChange={(e) => setCaja(e.target.value)}>
+                {["Caja 1", "Caja 2", "Caja 3"].map((c) => (
+                  <option key={c}>{c}</option>
+                ))}
+              </select>
             </Field>
           </div>
         </section>
@@ -207,128 +225,59 @@ function AbrirCajaBody({ onClose, onConfirm }) {
               </div>
             </div>
             <div className="md:text-right">
-              <GradientBtn onClick={setFromDesglose}>
-                Usar suma del desglose
-              </GradientBtn>
+              <GradientBtn onClick={setFromDesglose}>Usar suma del desglose</GradientBtn>
             </div>
           </div>
 
-          {/* DESGLOSE */}
           <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
             {denoms.map((d, idx) => (
-              <div key={d.value} className={`border rounded-lg px-3 py-2 ${theme === "dark" ? "bg-slate-800 border-slate-700" : "bg-white border-orange-200"}`}>
-                <div className="text-xs font-medium text-white bg-gradient-to-r from-orange-400 via-pink-400 to-fuchsia-500 px-2 py-[2px] rounded-md inline-block shadow-sm">
-                  {d.label}
-                </div>
+              <div key={d.value} className="border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 bg-white dark:bg-slate-800">
+                <div className="text-xs text-slate-600 dark:text-slate-300">{d.label}</div>
                 <div className="mt-1 flex items-center gap-2">
-                  <Input type="number" value={d.qty} onChange={(e) => setQty(idx, e.target.value)} />
-                  <span className="text-xs font-semibold text-orange-700 dark:text-pink-200">
-                    = {money(d.qty * d.value)}
-                  </span>
+                  <input
+                    type="number"
+                    min={0}
+                    value={d.qty}
+                    onChange={(e) => setQty(idx, e.target.value)}
+                    className="w-20 rounded border border-slate-300 dark:border-slate-700 dark:bg-slate-900 px-2 py-1 text-sm text-slate-700 dark:text-slate-100"
+                  />
+                  <span className="text-xs text-slate-500 dark:text-slate-400">= {money(d.qty * d.value)}</span>
                 </div>
               </div>
             ))}
           </div>
 
-          {/* TOTAL */}
-          <div className="mt-4 text-right">
-            <span className="inline-block bg-gradient-to-r from-orange-400 via-pink-400 to-fuchsia-500 text-white px-3 py-1 rounded-md shadow-sm text-sm font-medium">
-              Suma desglose: {money(totalDesglose)}
-            </span>
+          <div className="mt-4 text-right text-sm">
+            <span className="text-slate-500 dark:text-slate-400 mr-2">Suma desglose:</span>
+            <span className="font-semibold text-slate-800 dark:text-white">{money(totalDesglose)}</span>
           </div>
         </section>
 
-        {/* OBSERVACIONES */}
-        <section
-          className={`rounded-xl p-5 shadow-md border ${
-            theme === "dark"
-              ? "bg-white-900 border-slate-700"
-              : "bg-white border-orange-200"
-          }`}
-        >
-          <Label>
-            <TagLabel>Observaciones (opcional)</TagLabel>
-          </Label>
-          <Textarea value={obs} onChange={(e) => setObs(e.target.value)} placeholder="Anota algo relevante para el inicio del turno…" />
+        {/* Observaciones */}
+        <section className="rounded-xl p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm">
+          <Label>Observaciones (opcional)</Label>
+          <textarea
+            rows={3}
+            className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
+            placeholder="Anota algo relevante…"
+            value={obs}
+            onChange={(e) => setObs(e.target.value)}
+          />
         </section>
 
         {/* BOTONES */}
         <div className="flex items-center justify-end gap-3 pt-2">
-          <SmallBtn variant="outline" onClick={onClose}>
-            Cancelar
-          </SmallBtn>
-          <GradientBtn onClick={handleSubmit}>Abrir caja</GradientBtn>
+          <SmallBtn variant="outline" onClick={onClose}>Cancelar</SmallBtn>
+          <GradientBtn onClick={handleSubmit} disabled={loading}>
+            {loading ? "Guardando..." : "Abrir caja"}
+          </GradientBtn>
         </div>
       </div>
     </>
   );
 }
 
-/* ====================== COMPONENTES REUTILIZABLES ====================== */
-function Input({ ...props }) {
-  return (
-    <input
-      {...props}
-      className="appearance-none w-full rounded-lg border border-slate-300 dark:border-slate-700 
-      bg-white dark:bg-slate-800 
-      text-slate-800 dark:text-white 
-      px-3 py-2 text-sm focus:outline-none 
-      focus:border-orange-400 focus:ring-2 focus:ring-orange-200 
-      transition shadow-inner 
-      placeholder-slate-400 
-      !bg-white !text-slate-800"
-      style={{
-        backgroundColor: "#ffffff", // asegura blanco real
-        color: "#1e293b",
-      }}
-    />
-  );
-}
-
-function Select({ options, ...props }) {
-  return (
-    <select
-      {...props}
-      className="appearance-none w-full rounded-lg border border-slate-300 dark:border-slate-700 
-      bg-white dark:bg-slate-800 
-      text-slate-800 dark:text-white 
-      px-3 py-2 text-sm focus:outline-none 
-      focus:border-orange-400 focus:ring-2 focus:ring-orange-200 
-      transition shadow-inner 
-      !bg-white !text-slate-800"
-      style={{
-        backgroundColor: "#ffffff",
-        color: "#1e293b",
-      }}
-    >
-      {options.map((o) => (
-        <option key={o}>{o}</option>
-      ))}
-    </select>
-  );
-}
-
-function Textarea({ ...props }) {
-  return (
-    <textarea
-      {...props}
-      rows={3}
-      className="appearance-none w-full rounded-lg border border-slate-300 dark:border-slate-700 
-      bg-white dark:bg-slate-800 
-      text-slate-800 dark:text-white 
-      px-3 py-2 text-sm focus:outline-none 
-      focus:border-orange-400 focus:ring-2 focus:ring-orange-200 
-      transition shadow-inner 
-      placeholder-slate-400 
-      !bg-white !text-slate-800"
-      style={{
-        backgroundColor: "#ffffff",
-        color: "#1e293b",
-      }}
-    />
-  );
-}
-/* ====================== Etiquetas y Botones ====================== */
+/* UI helpers */
 function Label({ children }) {
   return <div className="text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">{children}</div>;
 }
@@ -340,35 +289,36 @@ function Field({ label, children }) {
     </div>
   );
 }
-function TagLabel({ children }) {
-  return (
-    <span className="inline-block bg-gradient-to-r from-orange-400 via-pink-400 to-fuchsia-500 text-white px-2 py-[2px] rounded-md shadow-sm text-xs font-medium">
-      {children}
-    </span>
-  );
+// Input reutilizable (estilos consistentes con el resto del formulario)
+function Input({ className = "", ...props }) {
+  return <input {...props} className={`w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm ${className}`} />;
 }
-function SmallBtn({ children, onClick, variant = "solid" }) {
+// Pequeña etiqueta para títulos/etiquetas compuestas
+function TagLabel({ children }) {
+  return <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">{children}</span>;
+}
+function SmallBtn({ children, onClick, variant = "solid", disabled }) {
   const base = "px-4 py-2 rounded-lg text-sm font-medium transition";
   const style =
     variant === "outline"
       ? "border border-slate-300 dark:border-slate-700 hover:bg-orange-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300"
       : "bg-gradient-to-r from-orange-500 to-fuchsia-500 text-white hover:brightness-110";
   return (
-    <button type="button" onClick={onClick} className={`${base} ${style}`}>
+    <button type="button" disabled={disabled} onClick={onClick} className={`${base} ${style}`}>
       {children}
     </button>
   );
 }
-function GradientBtn({ children, onClick }) {
+function GradientBtn({ children, onClick, disabled }) {
   return (
     <button
       onClick={onClick}
-      className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-gradient-to-r from-orange-500 to-fuchsia-500 hover:brightness-110 transition"
+      disabled={disabled}
+      className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-gradient-to-r from-orange-500 to-fuchsia-500 hover:brightness-110 transition disabled:opacity-60"
     >
       {children}
     </button>
   );
 }
 
-/* ====================== export default ====================== */
 export default AbrirCaja;
