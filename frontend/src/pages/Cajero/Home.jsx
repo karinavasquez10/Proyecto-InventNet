@@ -36,8 +36,10 @@ const POSHome = () => {
   const [showInventario, setShowInventario] = useState(false);
   const [showAbrirCaja, setShowAbrirCaja] = useState(false);
   const [showClientes, setShowClientes] = useState(false);
-    const [showPerfilCajera, setShowPerfilCajera] = useState(false);
-   const navigate = useNavigate();
+  const [showPerfilCajera, setShowPerfilCajera] = useState(false);
+  
+  const navigate = useNavigate();
+ 
 
   // Perfil
   const [showProfile, setShowProfile] = useState(false);
@@ -417,11 +419,15 @@ const POSHome = () => {
 
         {/* Cerrar sesión */}
         <button
-          onClick={() => window.location.reload()}
+          onClick={() => {
+            setShowProfile(false);
+            navigate("/loginForm");
+          }}
           className="w-full py-2 flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg font-semibold transition"
         >
-          <LogOut size={16} /> Cerrar sesión
+          Cerrar sesión
         </button>
+
 
         {/* Cerrar ventana */}
         <button

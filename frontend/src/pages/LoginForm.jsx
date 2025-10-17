@@ -18,15 +18,9 @@ function LoginForm() {
     try {
       const res = await api.post("/auth/login", { email, password });
       if (remember) {
-        try {
-          localStorage.setItem("last_email", email);
-        } catch {
-          // Ignorar errores de localStorage
-        }
+        localStorage.setItem("last_email", email);
       }
       const user = res.data.user;
-
-      // Validación robusta del rol
       const rol = (user?.rol || "").toLowerCase();
 
       if (rol === "administrador" || rol === "admin") {
@@ -47,7 +41,6 @@ function LoginForm() {
     }
   };
 
-  // Cargar último correo recordado
   useEffect(() => {
     try {
       const last = localStorage.getItem("last_email");
@@ -62,23 +55,25 @@ function LoginForm() {
       <div className="w-full max-w-5xl bg-white rounded-3xl shadow-xl border border-slate-200 overflow-hidden grid grid-cols-1 md:grid-cols-2">
         {/* Panel izquierdo: Form */}
         <div className="p-7 sm:p-10">
-          {/* Branding */}
           <div className="flex items-center gap-3 mb-8">
             <div className="h-10 w-10 rounded-xl bg-orange-500 text-white font-bold grid place-items-center">
               IN
             </div>
             <div>
               <div className="font-semibold leading-tight">InventNet</div>
-              <div className="text-xs text-slate-500 -mt-0.5">Controla tu negocio fácil</div>
+              <div className="text-xs text-slate-500 -mt-0.5">
+                Controla tu negocio fácil
+              </div>
             </div>
           </div>
 
-          <h1 className="text-2xl sm:text-3xl font-bold text-slate-800">Iniciar sesión</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-800">
+            Iniciar sesión
+          </h1>
           <p className="mt-1 text-sm text-slate-500">
             Ingresa tus credenciales para continuar.
           </p>
 
-          {/* Mensaje */}
           {mensaje && (
             <div
               className={`mt-5 text-sm rounded-lg px-3 py-2 border ${
@@ -91,7 +86,6 @@ function LoginForm() {
             </div>
           )}
 
-          {/* Formulario */}
           <form onSubmit={handleSubmit} className="mt-6 space-y-4">
             <div>
               <label className="block text-sm font-medium text-slate-700">
@@ -160,7 +154,6 @@ function LoginForm() {
             </button>
           </form>
 
-          {/* Legal */}
           <p className="mt-6 text-[11px] text-slate-500">
             Al continuar, aceptas nuestros{" "}
             <a href="/terminos" className="underline hover:text-slate-700">
@@ -174,23 +167,24 @@ function LoginForm() {
           </p>
         </div>
 
-        {/* Panel derecho: CTA registro (se oculta en móvil) */}
+        {/* Panel derecho (ajustado, sin botón de registro) */}
         <div className="hidden md:block relative bg-gradient-to-br from-orange-500 via-rose-500 to-fuchsia-500">
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(255,255,255,0.25),transparent_50%)]" />
           <div className="h-full w-full text-white p-10 flex flex-col items-center justify-center text-center">
             <h2 className="text-3xl font-extrabold drop-shadow-sm">
-              ¿Aún no estás registrado?
+              Bienvenido a InventNet
             </h2>
             <p className="mt-3 max-w-sm text-white/90">
-              Regístrate para administrar productos, ventas y tu negocio
-              de forma sencilla.
+              Sistema integral de gestión de inventarios y ventas.
+              <br />
+              Acceso exclusivo para usuarios autorizados por el administrador.
             </p>
-            <a
-              href="/registro"
-              className="mt-6 inline-flex items-center justify-center rounded-xl bg-white/90 text-rose-600 hover:bg-white px-5 py-2 font-semibold shadow"
-            >
-              Crear cuenta
-            </a>
+
+            {/* Nueva sección informativa */}
+            <div className="mt-8 text-sm text-white/80 max-w-sm">
+              Si necesitas acceso, contacta con el administrador del sistema
+              o el área de soporte técnico.
+            </div>
 
             <div className="mt-10 text-xs text-white/70">
               Soporte: lun–sáb 8:00am–6:00pm
