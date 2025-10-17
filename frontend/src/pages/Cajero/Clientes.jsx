@@ -191,8 +191,10 @@ function ClientesBody({ onClose }) {
               ].map(([label, key]) => (
                 <Field key={key} label={label}>
                   <input
-                    value={form[key] || ""}
-                    onChange={(e) => setForm({ ...form, [key]: e.target.value })}
+                    value={form[key]}
+                    onChange={(e) =>
+                      setForm({ ...form, [key]: e.target.value })
+                    }
                     className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
                   />
                 </Field>
@@ -237,6 +239,7 @@ function ClientesBody({ onClose }) {
             <tbody className="divide-y divide-orange-100 dark:divide-slate-800">
               {pageData.map((c, i) => (
                 <tr
+
                   key={c.id || i}
                   className={`transition ${
                     theme === "dark"
