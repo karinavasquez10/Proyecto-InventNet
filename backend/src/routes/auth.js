@@ -10,9 +10,13 @@ router.post("/login", async (req, res) => {
 
 
   try {
-    // Buscar usuario en la base de datos
+    // Buscar usuario y su detalle (para obtener cargo)
     const [rows] = await pool.query(
-      "SELECT id_usuario, correo, contrasena, rol FROM usuarios WHERE correo = ? LIMIT 1",
+      `SELECT u.id_usuario, u.correo, u.contrasena, u.rol, u.nombre, d.cargo
+       FROM usuarios u
+       LEFT JOIN usuarios_detalle d ON d.id_usuario = u.id_usuario
+       WHERE u.correo = ?
+       LIMIT 1`,
       [email]
     );
     if (rows.length === 0) {
@@ -26,16 +30,23 @@ router.post("/login", async (req, res) => {
       return res.status(401).json({ error: "Contraseña incorrecta" });
     }
 
-    // Crear token JWT
+    // Crear token JWT (preserva comportamiento previo)
+    const secret = process.env.JWT_SECRET || "dev_secret";
     const token = jwt.sign(
       { id: user.id_usuario, email: user.correo },
-      process.env.JWT_SECRET,
+      secret,
       { expiresIn: "1h" }
     );
 
     res.json({
       token,
-      user: { id: user.id_usuario, email: user.correo, rol: user.rol},
+      user: {
+        id: user.id_usuario,
+        email: user.correo,
+        rol: user.rol,
+        nombre: user.nombre || null,
+        cargo: user.cargo || null,
+      },
     });
   } catch (error) {
     console.error("Error en login:", error);

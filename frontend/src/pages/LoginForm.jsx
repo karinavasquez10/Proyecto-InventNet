@@ -21,12 +21,14 @@ function LoginForm() {
         localStorage.setItem("last_email", email);
       }
       const user = res.data.user;
+
+      // Validación robusta del rol
       const rol = (user?.rol || "").toLowerCase();
 
       if (rol === "administrador" || rol === "admin") {
         navigate("/HomeAdmin");
       } else if (rol === "cajero") {
-        setMensaje(`✅ Bienvenido Cajero: ${user?.email ?? "Usuario"}`);
+        setMensaje(`✅ Bienvenido Cajero: ${user?.nombre ?? user?.email ?? "Usuario"}`);
         navigate("/Home");
       } else if (rol) {
         setMensaje(`❌ Rol de usuario no reconocido: ${user?.rol}`);
