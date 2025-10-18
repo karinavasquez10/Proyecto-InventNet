@@ -24,11 +24,11 @@ function useSystemTheme() {
 }
 
 /* ====================== Modal público ====================== */
-function AbrirCaja({ open, onClose, onConfirm }) {
+function AbrirCaja({ open, onClose, usuario }) {
   if (!open) return null;
   return createPortal(
     <ModalShell onClose={onClose}>
-      <AbrirCajaBody onClose={onClose} onConfirm={onConfirm} />
+      <AbrirCajaBody onClose={onClose} usuario={usuario} />
     </ModalShell>,
     document.body
   );
@@ -37,7 +37,9 @@ function AbrirCaja({ open, onClose, onConfirm }) {
 /* ====================== Shell con overlay ====================== */
 function ModalShell({ children, onClose }) {
   React.useEffect(() => {
-    const onKey = (e) => e.key === "Escape" && onClose?.();
+    const onKey = (e) => {
+      if (e.key === "Escape") onClose?.();
+    };
     window.addEventListener("keydown", onKey);
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -82,49 +84,71 @@ const DENOMS = [
   { label: "$100", value: 100 },
 ];
 
+const API_URL =  "http://localhost:5000/api"; // Mejor que dejar hardcodeada
+
 /* ====================== Cuerpo del modal ====================== */
-function AbrirCajaBody({ onClose, onConfirm }) {
+function AbrirCajaBody({ onClose, usuario }) {
   const theme = useSystemTheme();
   const now = new Date();
-  const [cajero, setCajero] = React.useState("");
+  const [cajero, setCajero] = React.useState(usuario?.nombre || "");
   const [sede, setSede] = React.useState("Principal");
   const [caja, setCaja] = React.useState("Caja 1");
-  const [base, setBase] = React.useState(0);
+  const [base, setBase] = React.useState("");
   const [obs, setObs] = React.useState("");
   const [denoms, setDenoms] = React.useState(DENOMS.map((d) => ({ ...d, qty: 0 })));
+  const [loading, setLoading] = React.useState(false);
 
-  const totalDesglose = denoms.reduce((s, d) => s + d.qty * d.value, 0);
-  const mismatch = base > 0 && totalDesglose > 0 && totalDesglose !== Number(base);
+  // Parse base a número para los cálculos y validaciones
+  const baseNumber = Number(base) || 0;
+
+  const totalDesglose = denoms.reduce((s, d) => s + (Number(d.qty) || 0) * d.value, 0);
+  const mismatch = baseNumber > 0 && totalDesglose > 0 && totalDesglose !== baseNumber;
 
   const setQty = (idx, qty) => {
-    const n = Math.max(0, parseInt(qty || 0, 10));
+    const n = Math.max(0, parseInt(qty || 0, 10) || 0);
     setDenoms((prev) => prev.map((d, i) => (i === idx ? { ...d, qty: n } : d)));
   };
 
   const setFromDesglose = () => setBase(totalDesglose);
 
-  const handleSubmit = () => {
-    if (!cajero) return alert("Ingresa el nombre del cajero.");
-    if (!base || Number(base) <= 0) return alert("Ingresa el valor de base.");
-    if (mismatch && !confirm("La suma del desglose es diferente a la base. ¿Continuar?")) return;
+  const handleSubmit = async () => {
+    if (!cajero.trim()) {
+      alert("El nombre del cajero es requerido.");
+      return;
+    }
+    if (!baseNumber || baseNumber <= 0) {
+      alert("Ingresa el valor de base.");
+      return;
+    }
+    if (mismatch && !window.confirm("La suma del desglose es diferente a la base. ¿Continuar?")) return;
 
     const payload = {
-      abiertoEn: now.toISOString(),
-      cajero,
-      sede,
-      caja,
-      base: Number(base),
-      desglose: denoms.filter((d) => d.qty > 0).map(({ label, value, qty }) => ({ label, value, qty })),
+      id_usuario: usuario?.id || 1,
+      id_sucursal: sede === "Principal" ? 1 : sede === "Sucursal Norte" ? 2 : 3,
+      numero_caja: caja.replace("Caja ", ""), // por si API requiere solo el número
+      fecha_apertura: new Date().toISOString(),
+      monto_inicial: baseNumber,
+      estado: "abierta",
       observaciones: obs,
-      estado: "ABIERTA",
+      desglose: denoms.map(d => ({ denominacion: d.value, cantidad: Number(d.qty) || 0 }))
     };
 
     try {
-      localStorage.setItem("caja_abierta", JSON.stringify(payload));
-    } catch {}
-
-    onConfirm?.(payload);
-    onClose?.();
+      setLoading(true);
+      const res = await fetch(`${API_URL}/cajas`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      alert(`✅ Caja abierta con éxito (ID: ${data.id || data._id || ""})`);
+      onClose();
+    } catch (err) {
+      alert("❌ Error al abrir caja: " + (err.message || err));
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -148,11 +172,7 @@ function AbrirCajaBody({ onClose, onConfirm }) {
             {now.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })}
           </p>
         </div>
-        <button
-          onClick={onClose}
-          className="p-2 rounded-md hover:bg-white/20 transition"
-          title="Cerrar"
-        >
+        <button onClick={onClose} className="p-2 rounded-md hover:bg-white/20 transition" title="Cerrar" type="button">
           <X size={18} />
         </button>
       </div>
@@ -174,16 +194,29 @@ function AbrirCajaBody({ onClose, onConfirm }) {
           }`}
         >
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Field label={<TagLabel>Cajero</TagLabel>}>
-              <Input value={cajero} onChange={(e) => setCajero(e.target.value)} placeholder="Nombre del cajero" />
+            <Field label="Cajero">
+              <Input
+                className={`${usuario?.nombre ? "bg-slate-100 dark:bg-slate-800" : ""}`}
+                placeholder="Nombre del cajero"
+                value={cajero}
+                onChange={(e) => setCajero(e.target.value)}
+                disabled={!!usuario?.nombre}
+                autoComplete="off"
+              />
             </Field>
-
-            <Field label={<TagLabel>Sede</TagLabel>}>
-              <Select value={sede} onChange={(e) => setSede(e.target.value)} options={["Principal", "Sucursal Norte", "Sucursal Sur"]} />
+            <Field label="Sede">
+              <Select
+                value={sede}
+                onChange={e => setSede(e.target.value)}
+                options={["Principal", "Sucursal Norte", "Sucursal Sur"]}
+              />
             </Field>
-
-            <Field label={<TagLabel>Número de Caja</TagLabel>}>
-              <Select value={caja} onChange={(e) => setCaja(e.target.value)} options={["Caja 1", "Caja 2", "Caja 3"]} />
+            <Field label="Número de Caja">
+              <Select
+                value={caja}
+                onChange={e => setCaja(e.target.value)}
+                options={["Caja 1", "Caja 2", "Caja 3"]}
+              />
             </Field>
           </div>
         </section>
@@ -202,12 +235,23 @@ function AbrirCajaBody({ onClose, onConfirm }) {
                 <TagLabel>Plata base (efectivo inicial)</TagLabel>
               </Label>
               <div className="flex gap-2 items-center">
-                <Input type="number" value={base} onChange={(e) => setBase(e.target.value)} placeholder="" />
-                <span className="text-sm font-semibold text-orange-800 dark:text-pink-200">{money(base)}</span>
+                <Input
+                  type="number"
+                  min={0}
+                  value={base}
+                  onChange={e => {
+                    // Solo permitir números positivos, sin decimales
+                    const val = e.target.value.replace(/\D/g, "");
+                    setBase(val);
+                  }}
+                  placeholder=""
+                  autoComplete="off"
+                />
+                <span className="text-sm font-semibold text-orange-800 dark:text-pink-200">{money(baseNumber)}</span>
               </div>
             </div>
             <div className="md:text-right">
-              <GradientBtn onClick={setFromDesglose}>
+              <GradientBtn onClick={setFromDesglose} disabled={totalDesglose === 0}>
                 Usar suma del desglose
               </GradientBtn>
             </div>
@@ -221,9 +265,18 @@ function AbrirCajaBody({ onClose, onConfirm }) {
                   {d.label}
                 </div>
                 <div className="mt-1 flex items-center gap-2">
-                  <Input type="number" value={d.qty} onChange={(e) => setQty(idx, e.target.value)} />
+                  <Input
+                    type="number"
+                    min={0}
+                    value={d.qty}
+                    onChange={e => {
+                      let val = e.target.value.replace(/\D/g, "");
+                      setQty(idx, val);
+                    }}
+                    autoComplete="off"
+                  />
                   <span className="text-xs font-semibold text-orange-700 dark:text-pink-200">
-                    = {money(d.qty * d.value)}
+                    = {money((Number(d.qty) || 0) * d.value)}
                   </span>
                 </div>
               </div>
@@ -236,13 +289,20 @@ function AbrirCajaBody({ onClose, onConfirm }) {
               Suma desglose: {money(totalDesglose)}
             </span>
           </div>
+          {mismatch && (
+            <div className="mt-2 text-right">
+              <span className="text-xs font-bold text-pink-600 dark:text-orange-200">
+                ⚠️ La suma del desglose no coincide con la base.
+              </span>
+            </div>
+          )}
         </section>
 
         {/* OBSERVACIONES */}
         <section
           className={`rounded-xl p-5 shadow-md border ${
             theme === "dark"
-              ? "bg-white-900 border-slate-700"
+              ? "bg-slate-900 border-slate-700"
               : "bg-white border-orange-200"
           }`}
         >
@@ -254,10 +314,10 @@ function AbrirCajaBody({ onClose, onConfirm }) {
 
         {/* BOTONES */}
         <div className="flex items-center justify-end gap-3 pt-2">
-          <SmallBtn variant="outline" onClick={onClose}>
-            Cancelar
-          </SmallBtn>
-          <GradientBtn onClick={handleSubmit}>Abrir caja</GradientBtn>
+          <SmallBtn variant="outline" onClick={onClose}>Cancelar</SmallBtn>
+          <GradientBtn onClick={handleSubmit} disabled={loading}>
+            {loading ? "Guardando..." : "Abrir caja"}
+          </GradientBtn>
         </div>
       </div>
     </>
@@ -265,70 +325,92 @@ function AbrirCajaBody({ onClose, onConfirm }) {
 }
 
 /* ====================== COMPONENTES REUTILIZABLES ====================== */
-function Input({ ...props }) {
+function Input({ className = "", style = {}, ...props }) {
   return (
     <input
       {...props}
-      className="appearance-none w-full rounded-lg border border-slate-300 dark:border-slate-700 
-      bg-white dark:bg-slate-800 
-      text-slate-800 dark:text-white 
-      px-3 py-2 text-sm focus:outline-none 
-      focus:border-orange-400 focus:ring-2 focus:ring-orange-200 
-      transition shadow-inner 
-      placeholder-slate-400 
-      !bg-white !text-slate-800"
+      className={
+        [
+          "appearance-none w-full rounded-lg border border-slate-300 dark:border-slate-700",
+          "bg-white dark:bg-slate-800",
+          "text-slate-800 dark:text-white",
+          "px-3 py-2 text-sm focus:outline-none",
+          "focus:border-orange-400 focus:ring-2 focus:ring-orange-200",
+          "transition shadow-inner",
+          "placeholder-slate-400",
+          "!bg-white !text-slate-800",
+          className,
+        ].join(" ")
+      }
       style={{
-        backgroundColor: "#ffffff", // asegura blanco real
+        backgroundColor: "#ffffff",
         color: "#1e293b",
+        ...style,
       }}
     />
   );
 }
 
-function Select({ options, ...props }) {
+function Select({ options, className = "", style = {}, ...props }) {
   return (
     <select
       {...props}
-      className="appearance-none w-full rounded-lg border border-slate-300 dark:border-slate-700 
-      bg-white dark:bg-slate-800 
-      text-slate-800 dark:text-white 
-      px-3 py-2 text-sm focus:outline-none 
-      focus:border-orange-400 focus:ring-2 focus:ring-orange-200 
-      transition shadow-inner 
-      !bg-white !text-slate-800"
+      className={
+        [
+          "appearance-none w-full rounded-lg border border-slate-300 dark:border-slate-700",
+          "bg-white dark:bg-slate-800",
+          "text-slate-800 dark:text-white",
+          "px-3 py-2 text-sm focus:outline-none",
+          "focus:border-orange-400 focus:ring-2 focus:ring-orange-200",
+          "transition shadow-inner",
+          "!bg-white !text-slate-800",
+          className,
+        ].join(" ")
+      }
       style={{
         backgroundColor: "#ffffff",
         color: "#1e293b",
+        ...style,
       }}
     >
       {options.map((o) => (
-        <option key={o}>{o}</option>
+        <option key={o} value={o}>
+          {o}
+        </option>
       ))}
     </select>
   );
 }
 
-function Textarea({ ...props }) {
+function Textarea({ className = "", style = {}, ...props }) {
   return (
     <textarea
       {...props}
       rows={3}
-      className="appearance-none w-full rounded-lg border border-slate-300 dark:border-slate-700 
-      bg-white dark:bg-slate-800 
-      text-slate-800 dark:text-white 
-      px-3 py-2 text-sm focus:outline-none 
-      focus:border-orange-400 focus:ring-2 focus:ring-orange-200 
-      transition shadow-inner 
-      placeholder-slate-400 
-      !bg-white !text-slate-800"
+      className={
+        [
+          "appearance-none w-full rounded-lg border border-slate-300 dark:border-slate-700",
+          "bg-white dark:bg-slate-800",
+          "text-slate-800 dark:text-white",
+          "px-3 py-2 text-sm focus:outline-none",
+          "focus:border-orange-400 focus:ring-2 focus:ring-orange-200",
+          "transition shadow-inner",
+          "placeholder-slate-400",
+          "!bg-white !text-slate-800",
+          className,
+        ].join(" ")
+      }
       style={{
         backgroundColor: "#ffffff",
         color: "#1e293b",
+        ...style,
       }}
     />
   );
 }
+
 /* ====================== Etiquetas y Botones ====================== */
+
 function Label({ children }) {
   return <div className="text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">{children}</div>;
 }
@@ -340,6 +422,7 @@ function Field({ label, children }) {
     </div>
   );
 }
+
 function TagLabel({ children }) {
   return (
     <span className="inline-block bg-gradient-to-r from-orange-400 via-pink-400 to-fuchsia-500 text-white px-2 py-[2px] rounded-md shadow-sm text-xs font-medium">
@@ -347,23 +430,25 @@ function TagLabel({ children }) {
     </span>
   );
 }
-function SmallBtn({ children, onClick, variant = "solid" }) {
+function SmallBtn({ children, onClick, variant = "solid", disabled }) {
   const base = "px-4 py-2 rounded-lg text-sm font-medium transition";
   const style =
     variant === "outline"
       ? "border border-slate-300 dark:border-slate-700 hover:bg-orange-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300"
       : "bg-gradient-to-r from-orange-500 to-fuchsia-500 text-white hover:brightness-110";
   return (
-    <button type="button" onClick={onClick} className={`${base} ${style}`}>
+    <button type="button" disabled={disabled} onClick={onClick} className={`${base} ${style}`}>
       {children}
     </button>
   );
 }
-function GradientBtn({ children, onClick }) {
+function GradientBtn({ children, onClick, disabled }) {
   return (
     <button
+      type="button"
       onClick={onClick}
-      className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-gradient-to-r from-orange-500 to-fuchsia-500 hover:brightness-110 transition"
+      disabled={disabled}
+      className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-gradient-to-r from-orange-500 to-fuchsia-500 hover:brightness-110 transition disabled:opacity-60"
     >
       {children}
     </button>

@@ -1,24 +1,47 @@
-
 // src/pages/HomeAdmin.jsx
 import React, { useState, useEffect } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { User, LogOut, Settings } from "lucide-react";
 
-
 export default function HomeAdmin() {
-const [openMenu, setOpenMenu] = useState(null);
-  const [profileOpen, setProfileOpen] = useState(false);
+  const [openMenu, setOpenMenu] = useState(null);
+  const [profilePhoto, setProfilePhoto] = useState("");
+  const [showDropdown, setShowDropdown] = useState(false); // Añadido: Estado separado para el dropdown del perfil
   const location = useLocation();
   const navigate = useNavigate();
-
-
-  
-
 
   const handleLogout = () => {
     localStorage.removeItem("authUser");
     navigate("/LoginForm");
   };
+
+  // Añadido: Datos del usuario autenticado (desde localStorage: authUser para admin)
+  const storedUser = (() => {
+    try { return JSON.parse(localStorage.getItem("authUser") || "null"); } catch { return null; }
+  })();
+  const admin = {
+    nombre: storedUser?.nombre || storedUser?.email || "Admin",
+    rol: storedUser?.cargo || storedUser?.rol || "Administrador",
+    correo: storedUser?.email || "",
+    id: storedUser?.id,
+  };
+
+  // Añadido: Helper para cloudName
+  const cloudName = (import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || "");
+
+  // Añadido: Cargar foto_perfil del admin
+  useEffect(() => {
+    const userId = admin.id;
+    if (!userId) return;
+    fetch(`http://localhost:5000/api/perfil/${userId}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data?.foto_perfil && cloudName) {
+          setProfilePhoto(`https://res.cloudinary.com/${cloudName}/image/upload/${data.foto_perfil}`);
+        }
+      })
+      .catch(() => {});
+  }, [admin.id, cloudName]);
 
   const menuItems = [
     {
@@ -184,14 +207,22 @@ const [openMenu, setOpenMenu] = useState(null);
 
       {/* ===== Contenido ===== */}
       <main className="ml-64 h-screen overflow-y-auto">
-        {/* Topbar */}
+        {/* Topbar - Ajustada solo para mostrar nombre, cargo y foto */}
         <div className="bg-white/90 backdrop-blur border-b sticky top-0 z-30 shadow-sm">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-            <div className="text-sm">
-              <span className="text-slate-500 mr-2">BIENVENIDO:</span>
-              <span className="font-semibold text-slate-800">
-                ANA YULIANA HOYOS
-              </span>
+            {/* Añadido: Avatar con foto, nombre y cargo - Click para abrir dropdown */}
+            <div className="flex items-center gap-3 cursor-pointer" onClick={() => setShowDropdown(true)}>
+              {profilePhoto ? (
+                <img src={profilePhoto} alt="Perfil" className="w-10 h-10 rounded-full object-cover border-2 border-orange-200" />
+              ) : (
+                <div className="w-10 h-10 rounded-full bg-gradient-to-r from-orange-500 to-fuchsia-500 flex items-center justify-center text-white font-bold text-sm">
+                  {admin.nombre[0]}
+                </div>
+              )}
+              <div className="leading-tight hidden sm:block">
+                <div className="text-sm font-semibold text-slate-800">{admin.nombre}</div>
+                <div className="text-xs text-slate-500">{admin.rol}</div>
+              </div>
             </div>
 
             <div className="flex items-center gap-3 relative">
@@ -205,21 +236,21 @@ const [openMenu, setOpenMenu] = useState(null);
                 Actualizar
               </button>
 
-              {/* Perfil del administrador */}
+              {/* Perfil del administrador - Corregido: Usa showDropdown */}
               <div className="relative">
                 <button
-                  onClick={() => setProfileOpen(!profileOpen)}
+                  onClick={() => setShowDropdown(!showDropdown)}
                   className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r from-orange-400 to-pink-500 text-white text-sm hover:brightness-110"
                 >
                   <User size={16} />
                   Admin
                 </button>
 
-                {profileOpen && (
+                {showDropdown && (
                   <div className="absolute right-0 mt-2 w-56 bg-white border border-slate-200 rounded-lg shadow-lg overflow-hidden">
                     <button
                       onClick={() => {
-                        setProfileOpen(false);
+                        setShowDropdown(false);
                         navigate("PerfilAdmin");
                       }}
                       className="flex items-center gap-2 px-4 py-2 text-sm text-slate-700 hover:bg-orange-50 w-full text-left"
@@ -227,7 +258,10 @@ const [openMenu, setOpenMenu] = useState(null);
                       <User size={14} /> Perfil del administrador
                     </button>
                     <button
-                      onClick={handleLogout}
+                      onClick={() => {
+                        setShowDropdown(false);
+                        handleLogout();
+                      }}
                       className="flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 w-full text-left"
                     >
                       <LogOut size={14} /> Cerrar sesión
