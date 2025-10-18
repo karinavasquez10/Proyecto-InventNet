@@ -1,7 +1,12 @@
 import React, { useState, useEffect } from "react";
 import { X, UserPlus } from "lucide-react";
+import { useNavigate } from "react-router-dom"; // ✅ Importar aquí
+
 
 /* ======= Hook para sincronizar el modo de color global ======= */
+
+
+
 function useSystemTheme() {
   const [theme, setTheme] = useState(
     document.documentElement.classList.contains("dark") ? "dark" : "light"
@@ -26,6 +31,7 @@ function useSystemTheme() {
 function Cobrar({ initialCliente = null, carrito = [], usuario, idCaja, onClose }) {
   const theme = useSystemTheme();
 
+  const navigate = useNavigate();
   const [efectivo, setEfectivo] = useState("");
   const [cliente, setCliente] = useState(initialCliente);
   const [showNuevoCliente, setShowNuevoCliente] = useState(false);
@@ -401,16 +407,20 @@ function Cobrar({ initialCliente = null, carrito = [], usuario, idCaja, onClose 
             </button>
           </div>
 
-          <button
-            onClick={() => confirmarVenta("efectivo", true)}
-            className={`w-full py-2 rounded-md font-bold text-xs transition ${
-              theme === "dark"
-                ? "bg-sky-700 hover:bg-sky-800"
-                : "bg-gradient-to-r from-sky-500 to-blue-600 hover:brightness-110 text-white"
-            }`}
-          >
-            Confirmar e Imprimir
-          </button>
+       <button
+        onClick={async () => {
+          await confirmarVenta("efectivo", true);
+          navigate("/ModeloFactura"); // 🔹 redirige después de imprimir
+        }}
+        className={`w-full py-2 rounded-md font-bold text-xs transition ${
+          theme === "dark"
+            ? "bg-sky-700 hover:bg-sky-800"
+            : "bg-gradient-to-r from-sky-500 to-blue-600 hover:brightness-110 text-white"
+        }`}
+      >
+        Confirmar e Imprimir
+      </button>
+
         </div>
       </div>
 
