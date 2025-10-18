@@ -1,6 +1,15 @@
-const express = require('express');
+import express from "express";
+import pool from "../config/database.js";
+
 const router = express.Router();
-const pool = require('../config/database');
+
+// Función helper para validar sucursal
+async function validarSucursal(id_sucursal) {
+    const [sucursales] = await pool.query('SELECT id_sucursal FROM sucursales WHERE id_sucursal = ?', [id_sucursal]);
+    if (sucursales.length === 0) {
+        throw new Error(`Sucursal con ID ${id_sucursal} no existe. Verifica las sucursales en la DB.`);
+    }
+}
 
 // POST /api/cajas - Abrir nueva caja
 router.post('/', async (req, res) => {
@@ -17,31 +26,39 @@ router.post('/', async (req, res) => {
             return res.status(400).send('Faltan datos requeridos: id_usuario, monto_inicial');
         }
 
+        // Validar sucursal si se proporciona, o usar 1 por defecto
+        let idSucursalFinal = id_sucursal || 1;
+        await validarSucursal(idSucursalFinal);
+
         const [result] = await pool.query(
             `INSERT INTO caja 
             (id_usuario, id_sucursal, fecha_apertura, monto_inicial, estado, total_ventas) 
             VALUES (?, ?, ?, ?, ?, 0)`,
             [
                 id_usuario, 
-                id_sucursal || 1, 
+                idSucursalFinal, 
                 fecha_apertura || new Date().toISOString(), 
                 monto_inicial, 
                 estado || 'abierta'
             ]
         );
 
-        const [rows] = await pool.query('SELECT * FROM caja WHERE id = ?', [result.insertId]);
+        const [rows] = await pool.query('SELECT * FROM caja WHERE id_caja = ?', [result.insertId]);
+        console.log(`Caja abierta exitosamente: ID ${result.insertId} para sucursal ${idSucursalFinal}`);
         res.status(201).json(rows[0]);
     } catch (error) {
         console.error('Error al abrir caja:', error);
+        if (error.message.includes('Sucursal')) {
+            return res.status(400).send(error.message);
+        }
         res.status(500).send('Error al abrir caja: ' + error.message);
     }
 });
 
-// PUT /api/cajas/:id/cerrar - Cerrar caja
-router.put('/:id/cerrar', async (req, res) => {
+// PUT /api/cajas/:id_caja/cerrar - Cerrar caja
+router.put('/:id_caja/cerrar', async (req, res) => {
     try {
-        const { id } = req.params;
+        const { id_caja } = req.params;
         const { 
             fecha_cierre, 
             monto_final, 
@@ -50,7 +67,7 @@ router.put('/:id/cerrar', async (req, res) => {
         } = req.body;
 
         // Obtener la caja actual
-        const [cajas] = await pool.query('SELECT * FROM caja WHERE id = ?', [id]);
+        const [cajas] = await pool.query('SELECT * FROM caja WHERE id_caja = ?', [id_caja]);
         
         if (cajas.length === 0) {
             return res.status(404).send('Caja no encontrada');
@@ -58,10 +75,11 @@ router.put('/:id/cerrar', async (req, res) => {
 
         const caja = cajas[0];
 
-        // Calcular diferencia si no viene
+        // Calcular diferencia si no viene (chequeo nulo para total_ventas)
+        const totalVentas = caja.total_ventas || 0;
         const diferenciaCalculada = diferencia !== undefined 
             ? diferencia 
-            : monto_final - caja.monto_inicial - (caja.total_ventas || 0);
+            : monto_final - caja.monto_inicial - totalVentas;
 
         await pool.query(
             `UPDATE caja 
@@ -70,17 +88,18 @@ router.put('/:id/cerrar', async (req, res) => {
                 diferencia = ?, 
                 estado = 'cerrada',
                 observaciones = ?
-            WHERE id = ?`,
+            WHERE id_caja = ?`,
             [
                 fecha_cierre || new Date().toISOString(),
                 monto_final,
                 diferenciaCalculada,
                 observaciones || '',
-                id
+                id_caja
             ]
         );
 
-        const [updated] = await pool.query('SELECT * FROM caja WHERE id = ?', [id]);
+        const [updated] = await pool.query('SELECT * FROM caja WHERE id_caja = ?', [id_caja]);
+        console.log(`Caja cerrada exitosamente: ID ${id_caja}, diferencia: ${diferenciaCalculada}`);
         res.json(updated[0]);
     } catch (error) {
         console.error('Error al cerrar caja:', error);
@@ -95,9 +114,11 @@ router.get('/', async (req, res) => {
             SELECT 
                 c.*,
                 u.nombre as nombre_usuario,
-                u.email as email_usuario
+                u.email as email_usuario,
+                s.nombre as nombre_sucursal
             FROM caja c
             LEFT JOIN usuarios u ON c.id_usuario = u.id
+            LEFT JOIN sucursales s ON c.id_sucursal = s.id_sucursal
             ORDER BY c.fecha_apertura DESC
         `);
         res.json(rows);
@@ -107,20 +128,22 @@ router.get('/', async (req, res) => {
     }
 });
 
-// GET /api/cajas/:id - Obtener detalle de una caja
-router.get('/:id', async (req, res) => {
+// GET /api/cajas/:id_caja - Obtener detalle de una caja
+router.get('/:id_caja', async (req, res) => {
     try {
-        const { id } = req.params;
+        const { id_caja } = req.params;
         
         const [cajas] = await pool.query(`
             SELECT 
                 c.*,
                 u.nombre as nombre_usuario,
-                u.email as email_usuario
+                u.email as email_usuario,
+                s.nombre as nombre_sucursal
             FROM caja c
             LEFT JOIN usuarios u ON c.id_usuario = u.id
-            WHERE c.id = ?
-        `, [id]);
+            LEFT JOIN sucursales s ON c.id_sucursal = s.id_sucursal
+            WHERE c.id_caja = ?
+        `, [id_caja]);
 
         if (cajas.length === 0) {
             return res.status(404).send('Caja no encontrada');
@@ -130,12 +153,12 @@ router.get('/:id', async (req, res) => {
         const [ventas] = await pool.query(`
             SELECT 
                 v.*,
-                c.nombre as nombre_cliente
+                cl.nombre as nombre_cliente
             FROM ventas v
-            LEFT JOIN clientes c ON v.id_cliente = c.id
+            LEFT JOIN clientes cl ON v.id_cliente = cl.id
             WHERE v.id_caja = ?
             ORDER BY v.fecha DESC
-        `, [id]);
+        `, [id_caja]);
 
         res.json({
             caja: cajas[0],
@@ -153,7 +176,11 @@ router.get('/abierta/:id_usuario', async (req, res) => {
         const { id_usuario } = req.params;
         
         const [cajas] = await pool.query(`
-            SELECT * FROM caja 
+            SELECT 
+                c.*,
+                s.nombre as nombre_sucursal
+            FROM caja c
+            LEFT JOIN sucursales s ON c.id_sucursal = s.id_sucursal
             WHERE id_usuario = ? AND estado = 'abierta'
             ORDER BY fecha_apertura DESC
             LIMIT 1

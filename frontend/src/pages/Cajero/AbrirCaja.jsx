@@ -84,6 +84,7 @@ const DENOMS = [
   { label: "$100", value: 100 },
 ];
 
+// URL importante: la API en este ejemplo debe exponer /cajas para la tabla "caja"
 const API_URL =  "http://localhost:5000/api"; // Mejor que dejar hardcodeada
 
 /* ====================== Cuerpo del modal ====================== */
@@ -91,12 +92,59 @@ function AbrirCajaBody({ onClose, usuario }) {
   const theme = useSystemTheme();
   const now = new Date();
   const [cajero, setCajero] = React.useState(usuario?.nombre || "");
-  const [sede, setSede] = React.useState("Principal");
+  const [sede, setSede] = React.useState('1'); // Inicial: ID '1' como string
   const [caja, setCaja] = React.useState("Caja 1");
   const [base, setBase] = React.useState("");
   const [obs, setObs] = React.useState("");
   const [denoms, setDenoms] = React.useState(DENOMS.map((d) => ({ ...d, qty: 0 })));
   const [loading, setLoading] = React.useState(false);
+  const [sucursales, setSucursales] = React.useState([]); // [{id_sucursal, nombre, ciudad}]
+  const [sucLoading, setSucLoading] = React.useState(true);
+  const [sucError, setSucError] = React.useState(null);
+
+  // Fetch sucursales al montar el componente
+  React.useEffect(() => {
+    const fetchSucursales = async () => {
+      try {
+        setSucLoading(true);
+        setSucError(null);
+        const res = await fetch(`${API_URL}/sucursales`);
+        if (!res.ok) throw new Error(`Error ${res.status}: No se pudieron cargar sucursales.`);
+        const data = await res.json();
+        setSucursales(data);
+        // Set initial sede to first active if available and no match for '1'
+        if (data.length > 0 && !data.some(s => s.id_sucursal.toString() === sede)) {
+          setSede(data[0].id_sucursal.toString());
+        }
+      } catch (err) {
+        console.error("Error fetching sucursales:", err);
+        setSucError(err.message);
+        // Fallback to hardcoded with objects for consistency
+        setSucursales([
+          { id_sucursal: 1, nombre: "Principal" },
+          { id_sucursal: 2, nombre: "Sucursal Norte" },
+          { id_sucursal: 3, nombre: "Sucursal Sur" }
+        ]);
+        // Set to first fallback
+        setSede('1');
+      } finally {
+        setSucLoading(false);
+      }
+    };
+    fetchSucursales();
+  }, []);
+
+  // Para integración con la facturación: guardamos la info de caja abierta en localStorage
+  const registrarCajaAbierta = (infoCaja) => {
+    localStorage.setItem(
+      "caja_abierta",
+      JSON.stringify({
+        ...infoCaja,
+        fecha_apertura: infoCaja.fecha_apertura,
+        id_caja: infoCaja.id_caja,
+      })
+    );
+  };
 
   // Parse base a número para los cálculos y validaciones
   const baseNumber = Number(base) || 0;
@@ -105,13 +153,17 @@ function AbrirCajaBody({ onClose, usuario }) {
   const mismatch = baseNumber > 0 && totalDesglose > 0 && totalDesglose !== baseNumber;
 
   const setQty = (idx, qty) => {
-    const n = Math.max(0, parseInt(qty || 0, 10) || 0);
+    const n = Math.max(0, parseInt(qty || "0", 10));
     setDenoms((prev) => prev.map((d, i) => (i === idx ? { ...d, qty: n } : d)));
   };
 
-  const setFromDesglose = () => setBase(totalDesglose);
+  const setFromDesglose = () => setBase(totalDesglose.toString());
 
   const handleSubmit = async () => {
+    if (!usuario?.id) {
+      alert("❌ Error: Usuario no autenticado. Inicia sesión primero.");
+      return;
+    }
     if (!cajero.trim()) {
       alert("El nombre del cajero es requerido.");
       return;
@@ -122,15 +174,16 @@ function AbrirCajaBody({ onClose, usuario }) {
     }
     if (mismatch && !window.confirm("La suma del desglose es diferente a la base. ¿Continuar?")) return;
 
+    // Asegúrate que el payload cumpla con los campos de la tabla caja en backend (cajas.js)
     const payload = {
-      id_usuario: usuario?.id || 1,
-      id_sucursal: sede === "Principal" ? 1 : sede === "Sucursal Norte" ? 2 : 3,
+      id_usuario: usuario.id,
+      id_sucursal: Number(sede), // ID numérico de la sucursal seleccionada
       numero_caja: caja.replace("Caja ", ""), // por si API requiere solo el número
       fecha_apertura: new Date().toISOString(),
       monto_inicial: baseNumber,
       estado: "abierta",
       observaciones: obs,
-      desglose: denoms.map(d => ({ denominacion: d.value, cantidad: Number(d.qty) || 0 }))
+      desglose: denoms.map(d => ({ denominacion: d.value, cantidad: Number(d.qty) || 0 })) // esto se puede guardar en una tabla hija si tu modelo MySQL lo requiere
     };
 
     try {
@@ -140,16 +193,35 @@ function AbrirCajaBody({ onClose, usuario }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      if (!res.ok) throw new Error(await res.text());
+      if (!res.ok) {
+        const errorText = await res.text();
+        throw new Error(errorText || `Error ${res.status}: No se pudo abrir la caja.`);
+      }
       const data = await res.json();
-      alert(`✅ Caja abierta con éxito (ID: ${data.id || data._id || ""})`);
+
+      // Guardar info de caja abierta para operar facturación
+      registrarCajaAbierta({
+        ...payload,
+        id_caja: data.id_caja,
+        caja: caja,
+        usuario: cajero,
+      });
+
+      alert(`✅ Caja abierta con éxito (ID: ${data.id_caja || ""})`);
       onClose();
     } catch (err) {
-      alert("❌ Error al abrir caja: " + (err.message || err));
+      console.error("Error en handleSubmit:", err);
+      alert(`❌ Error al abrir caja: ${err.message}`);
     } finally {
       setLoading(false);
     }
   };
+
+  // Opciones para Sede: [{value: id_sucursal.toString(), label: nombre (ciudad)}]
+  const sedeOptions = sucursales.map(s => ({
+    value: s.id_sucursal.toString(),
+    label: `${s.nombre}${s.ciudad ? ` (${s.ciudad})` : ''}`
+  }));
 
   return (
     <>
@@ -208,8 +280,22 @@ function AbrirCajaBody({ onClose, usuario }) {
               <Select
                 value={sede}
                 onChange={e => setSede(e.target.value)}
-                options={["Principal", "Sucursal Norte", "Sucursal Sur"]}
-              />
+                disabled={sucLoading}
+              >
+                {sucLoading ? (
+                  <option value="">Cargando sedes...</option>
+                ) : sucError ? (
+                  <option value="">Error al cargar sedes (usando fallback)</option>
+                ) : sedeOptions.length === 0 ? (
+                  <option value="">No hay sucursales disponibles</option>
+                ) : (
+                  sedeOptions.map(o => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))
+                )}
+              </Select>
             </Field>
             <Field label="Número de Caja">
               <Select
@@ -315,7 +401,7 @@ function AbrirCajaBody({ onClose, usuario }) {
         {/* BOTONES */}
         <div className="flex items-center justify-end gap-3 pt-2">
           <SmallBtn variant="outline" onClick={onClose}>Cancelar</SmallBtn>
-          <GradientBtn onClick={handleSubmit} disabled={loading}>
+          <GradientBtn onClick={handleSubmit} disabled={loading || sucLoading}>
             {loading ? "Guardando..." : "Abrir caja"}
           </GradientBtn>
         </div>
@@ -351,7 +437,7 @@ function Input({ className = "", style = {}, ...props }) {
   );
 }
 
-function Select({ options, className = "", style = {}, ...props }) {
+function Select({ options, className = "", style = {}, children, ...props }) {
   return (
     <select
       {...props}
@@ -373,11 +459,11 @@ function Select({ options, className = "", style = {}, ...props }) {
         ...style,
       }}
     >
-      {options.map((o) => (
+      {children || (options?.map((o) => (
         <option key={o} value={o}>
           {o}
         </option>
-      ))}
+      )))}
     </select>
   );
 }
@@ -409,11 +495,10 @@ function Textarea({ className = "", style = {}, ...props }) {
   );
 }
 
-/* ====================== Etiquetas y Botones ====================== */
-
 function Label({ children }) {
   return <div className="text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">{children}</div>;
 }
+
 function Field({ label, children }) {
   return (
     <div>
@@ -430,6 +515,7 @@ function TagLabel({ children }) {
     </span>
   );
 }
+
 function SmallBtn({ children, onClick, variant = "solid", disabled }) {
   const base = "px-4 py-2 rounded-lg text-sm font-medium transition";
   const style =
@@ -442,6 +528,7 @@ function SmallBtn({ children, onClick, variant = "solid", disabled }) {
     </button>
   );
 }
+
 function GradientBtn({ children, onClick, disabled }) {
   return (
     <button
