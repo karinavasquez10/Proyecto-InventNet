@@ -23,12 +23,98 @@ function useSystemTheme() {
   return theme;
 }
 
+/* =========== Control global: caja abierta (bloqueo de abrir caja) =========== */
+/*
+  Implementamos un control global usando localStorage para determinar si hay
+  una sesión de caja abierta en curso. Si existe "caja_abierta" y no ha sido cerrada,
+  NO se debe poder mostrar el modal de abrir caja.
+*/
+
+function isCajaAbiertaLocal() {
+  const local = localStorage.getItem("caja_abierta");
+  if (!local) return null;
+  try {
+    const obj = JSON.parse(local);
+    // La quitamos sólo por campo 'cerrada' en local, o id_caja nulo
+    if (obj && obj.estado === "abierta" && obj.id_caja) {
+      // Admite borrado manual: expirará sólo si el objeto es eliminado o explícitamente cambia de estado/cierre
+      return obj;
+    }
+  } catch (e) {console.log(e)}
+  return null;
+}
+
 /* ====================== Modal público ====================== */
 function AbrirCaja({ open, onClose, usuario }) {
+  // Control de bloqueo si ya hay caja abierta
+  const [cajaEnCurso, setCajaEnCurso] = React.useState(isCajaAbiertaLocal());
+  const [bloqueada, setBloqueada] = React.useState(!!cajaEnCurso);
+
+  // Escucha el storage por cambios externos (otra pestaña).
+  React.useEffect(() => {
+    const actualizar = () => {
+      const active = isCajaAbiertaLocal();
+      setCajaEnCurso(active);
+      setBloqueada(!!active);
+      // Si abrimos la vista manualmente y la caja se cierra desde otro lado, re-enable
+      // Si se abre la caja en otra pestaña, bloquea aquí también.
+    };
+    window.addEventListener("storage", actualizar);
+    return () => window.removeEventListener("storage", actualizar);
+  }, []);
+
+  // También, cada vez que se monta el modal (open=true), verifica el estado.
+  React.useEffect(() => {
+    const active = isCajaAbiertaLocal();
+    setCajaEnCurso(active);
+    setBloqueada(!!active);
+  }, [open]);
+
+  // Usamos un callback para que el Body pueda "bloquear" al abrir exitosamente la caja
+  const handleBloqueoExitoso = React.useCallback(() => {
+    // Vuelve a leer el localStorage (por si se guardó con nueva info)
+    const active = isCajaAbiertaLocal();
+    setCajaEnCurso(active);
+    setBloqueada(!!active);
+  }, []);
+
+  // Si no está visible, retorna null
   if (!open) return null;
+
+  // Mostar mensaje amable si ya hay sesión abierta, en vez del modal normal
+  if (bloqueada) {
+    return createPortal(
+      <ModalShell onClose={onClose}>
+        <div className="flex flex-col h-full w-full items-center justify-center p-8">
+          <div className="mb-4 flex items-center gap-3">
+            <svg width={40} height={40} viewBox="0 0 40 40">
+              <circle cx={20} cy={20} r={20} fill="#f472b6" />
+              <text x="50%" y="57%" fontSize="20" fill="#fff" fontWeight={700} textAnchor="middle" alignmentBaseline="middle">!</text>
+            </svg>
+            <h2 className="text-2xl font-bold text-pink-700 dark:text-orange-300">Caja ya abierta</h2>
+          </div>
+          <p className="text-slate-700 dark:text-slate-100 text-center max-w-md mb-6">
+            Ya tienes una caja abierta en curso.
+            <br />
+            No puedes abrir otra caja hasta cerrar la sesión actual.
+          </p>
+          <button
+            onClick={onClose}
+            className="px-5 py-2 bg-gradient-to-r from-orange-500 to-fuchsia-500 text-white rounded-lg text-sm font-medium shadow-lg hover:brightness-110 transition"
+            type="button"
+          >
+            Cerrar
+          </button>
+        </div>
+      </ModalShell>,
+      document.body
+    );
+  }
+
+  // Si no hay bloqueo, renderizar el modal normal
   return createPortal(
     <ModalShell onClose={onClose}>
-      <AbrirCajaBody onClose={onClose} usuario={usuario} />
+      <AbrirCajaBody onClose={onClose} usuario={usuario} onCajaAbierta={handleBloqueoExitoso} />
     </ModalShell>,
     document.body
   );
@@ -88,7 +174,7 @@ const DENOMS = [
 const API_URL =  "http://localhost:5000/api"; // Mejor que dejar hardcodeada
 
 /* ====================== Cuerpo del modal ====================== */
-function AbrirCajaBody({ onClose, usuario }) {
+function AbrirCajaBody({ onClose, usuario, onCajaAbierta }) {
   const theme = useSystemTheme();
   const now = new Date();
   const [cajero, setCajero] = React.useState(usuario?.nombre || "");
@@ -142,6 +228,7 @@ function AbrirCajaBody({ onClose, usuario }) {
         ...infoCaja,
         fecha_apertura: infoCaja.fecha_apertura,
         id_caja: infoCaja.id_caja,
+        estado: "abierta"
       })
     );
   };
@@ -199,13 +286,18 @@ function AbrirCajaBody({ onClose, usuario }) {
       }
       const data = await res.json();
 
-      // Guardar info de caja abierta para operar facturación
+      // Guardar info de caja abierta para operar facturación y bloqueo modal
       registrarCajaAbierta({
         ...payload,
         id_caja: data.id_caja,
         caja: caja,
         usuario: cajero,
       });
+
+      // Llamamos callback de arriba (padre) para indicar que debe bloquear el modal en toda la app
+      if (typeof onCajaAbierta === "function") {
+        onCajaAbierta();
+      }
 
       alert(`✅ Caja abierta con éxito (ID: ${data.id_caja || ""})`);
       onClose();

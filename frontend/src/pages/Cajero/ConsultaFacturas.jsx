@@ -1,5 +1,5 @@
 // src/pages/Admin/ConsultaFacturas.jsx
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { X, Printer } from "lucide-react";
 
@@ -68,42 +68,83 @@ function ModalShell({ children, onClose }) {
   );
 }
 
-/* =================== Datos de ejemplo =================== */
-const INVOICES = [
-  { id: 16791, fecha: "2025-09-20", cajero: "JULIANA HOYOS", medio: "CONTADO", hora: "16:41:49", estado: "SALDADA", total: 46000 },
-  { id: 16790, fecha: "2025-09-20", cajero: "JULIANA HOYOS", medio: "CONTADO", hora: "16:27:05", estado: "SALDADA", total: 1750 },
-  { id: 16789, fecha: "2025-09-20", cajero: "JULIANA HOYOS", medio: "CONTADO", hora: "16:23:46", estado: "SALDADA", total: 18650 },
-  { id: 16788, fecha: "2025-09-20", cajero: "JULIANA HOYOS", medio: "CONTADO", hora: "16:18:17", estado: "SALDADA", total: 3000 },
-];
-
-const money = (n) =>
-  (Number(n) || 0).toLocaleString("es-CO", {
-    style: "currency",
-    currency: "COP",
-    maximumFractionDigits: 0,
-  });
+/* =================== URL de la API =================== */
+const API_URL = "http://localhost:5000/api";
 
 /* =================== Cuerpo del modal =================== */
 function ConsultaFacturasBody({ onClose }) {
   const theme = useSystemTheme();
 
-  const [fecha, setFecha] = React.useState("2025-09-20");
-  const cajeros = ["TODOS", ...Array.from(new Set(INVOICES.map((i) => i.cajero)))];
-  const medios = ["TODOS", ...Array.from(new Set(INVOICES.map((i) => i.medio)))];
-  const estados = ["TODOS", ...Array.from(new Set(INVOICES.map((i) => i.estado)))];
+  const [facturas, setFacturas] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const [cajero, setCajero] = React.useState("TODOS");
-  const [medio, setMedio] = React.useState("TODOS");
-  const [estado, setEstado] = React.useState("TODOS");
+  const [fecha, setFecha] = useState("");
+  const [cajero, setCajero] = useState("TODOS");
+  const [medio, setMedio] = useState("TODOS");
+  const [estado, setEstado] = useState("TODOS");
 
-  const filtered = INVOICES.filter(
+  // Fetch facturas desde backend
+  useEffect(() => {
+    const fetchFacturas = async () => {
+      try {
+        setLoading(true);
+        const res = await fetch(`${API_URL}/ventas`);
+        if (!res.ok) throw new Error(`Error ${res.status}: No se pudieron cargar facturas.`);
+        const data = await res.json();
+        console.log("Facturas cargadas:", data);  // Debug
+        setFacturas(data);
+      } catch (err) {
+        console.error("Error fetching facturas:", err);
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchFacturas();
+  }, []);
+
+  // Opciones únicas para filtros (de datos reales)
+  const cajeros = ["TODOS", ...Array.from(new Set(facturas.map((i) => i.nombre_usuario || ""))).filter(Boolean)];
+  const medios = ["TODOS", ...Array.from(new Set(facturas.map((i) => i.metodo_pago || ""))).filter(Boolean)];
+  const estados = ["TODOS", "SALDADA"];  // Asumir 'SALDADA' para todas; agregar campo si necesitas más
+
+  const filtered = facturas.filter(
     (i) =>
-      (!fecha || i.fecha === fecha) &&
-      (cajero === "TODOS" || i.cajero === cajero) &&
-      (medio === "TODOS" || i.medio === medio) &&
-      (estado === "TODOS" || i.estado === estado)
+      (!fecha || i.fecha.startsWith(fecha)) &&
+      (cajero === "TODOS" || i.nombre_usuario === cajero) &&
+      (medio === "TODOS" || i.metodo_pago === medio) &&
+      (estado === "TODOS" || estado === "SALDADA")  // Asumir todas 'SALDADA'
   );
-  const total = filtered.reduce((s, i) => s + i.total, 0);
+
+  const total = filtered.reduce((s, i) => s + (i.total || 0), 0);
+
+  const money = (n) =>
+    (Number(n) || 0).toLocaleString("es-CO", {
+      style: "currency",
+      currency: "COP",
+      maximumFractionDigits: 0,
+    });
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <p className="text-center text-lg">Cargando facturas...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="text-center">
+          <h3 className="text-red-600 mb-2">Error</h3>
+          <p>{error}</p>
+          <button onClick={onClose} className="mt-4 px-4 py-2 bg-blue-500 text-white rounded">Cerrar</button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -117,7 +158,9 @@ function ConsultaFacturasBody({ onClose }) {
       >
         <h2 className="text-base font-semibold">Consulta de Facturas</h2>
         <button
-          onClick={onClose}
+          onClick={() => {
+            if (typeof onClose === "function") onClose();
+          }}
           className="p-2 rounded-md hover:bg-white/20 transition"
           title="Cerrar"
         >
@@ -130,7 +173,7 @@ function ConsultaFacturasBody({ onClose }) {
         className={`overflow-y-auto p-5 space-y-6 transition-colors duration-300 ${
           theme === "dark"
             ? "bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-100"
-            : "bg-gradient-to-br from-orange-100 via-white to-rose-100 text-slate-700"
+            : "bg-gradient-to-br from-orange-50 via-white to-rose-50 text-slate-800"
         }`}
       >
         {/* Filtros */}
@@ -138,7 +181,7 @@ function ConsultaFacturasBody({ onClose }) {
           className={`rounded-xl p-5 shadow-md border transition ${
             theme === "dark"
               ? "bg-slate-900 border-slate-700"
-              : "bg-white border-slate-200"
+              : "bg-white border-orange-200"
           }`}
         >
           <h3 className="font-semibold mb-3 inline-block px-3 py-1 rounded-md text-white shadow-md bg-gradient-to-r from-orange-400 via-pink-400 to-fuchsia-500">
@@ -159,33 +202,30 @@ function ConsultaFacturasBody({ onClose }) {
             </Field>
 
             <Select label="Cajero" options={cajeros} value={cajero} onChange={setCajero} theme={theme} />
-            <Select label="Medio" options={medios} value={medio} onChange={setMedio} theme={theme} />
+            <Select label="Medio Pago" options={medios} value={medio} onChange={setMedio} theme={theme} />
             <Select label="Estado" options={estados} value={estado} onChange={setEstado} theme={theme} />
           </div>
         </section>
 
         {/* Tabla */}
         <section
-          className={`rounded-xl p-4 shadow-sm border transition ${
+          className={`rounded-xl p-5 shadow-md border transition ${
             theme === "dark"
               ? "bg-slate-900 border-slate-700"
-              : "bg-white border-orange-100"
+              : "bg-white border-orange-200"
           }`}
         >
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="font-semibold inline-block px-3 py-1 rounded-md text-white shadow-md bg-gradient-to-r from-orange-400 via-pink-400 to-fuchsia-500">
-              Resultados
-            </h3>
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="font-semibold text-lg">Lista de Facturas</h3>
             <PrintButton onClick={() => window.print()} />
           </div>
 
           <div className="overflow-x-auto border border-orange-100 dark:border-slate-700 rounded-xl">
             <table className="min-w-full text-sm">
               <thead
-                className={`${
-                  theme === "dark"
-                    ? "bg-slate-800 text-slate-200"
-                    : "bg-orange-50 text-slate-800"
+                className={`${theme === "dark"
+                  ? "bg-slate-800 text-slate-200"
+                  : "bg-orange-50 text-slate-800"
                 }`}
               >
                 <tr>
@@ -201,32 +241,40 @@ function ConsultaFacturasBody({ onClose }) {
               </thead>
               <tbody className="divide-y divide-orange-100 dark:divide-slate-700">
                 {filtered.length ? (
-                  filtered.map((r) => (
-                    <tr
-                      key={r.id}
-                      className={`hover:transition ${
-                        theme === "dark"
-                          ? "hover:bg-slate-800/60"
-                          : "hover:bg-orange-50"
-                      }`}
-                    >
-                      <Td>{r.id}</Td>
-                      <Td>{new Date(r.fecha).toLocaleDateString("es-CO")}</Td>
-                      <Td>{r.cajero}</Td>
-                      <Td>{r.medio}</Td>
-                      <Td className="text-rose-600 dark:text-rose-400 font-medium">{r.hora}</Td>
-                      <Td className="text-emerald-600 dark:text-emerald-400 font-semibold">
-                        {r.estado}
-                      </Td>
-                      <Td className="text-right font-semibold">{money(r.total)}</Td>
-                      <Td className="text-center">
-                        <div className="flex justify-center gap-2">
-                          <SmallBtn variant="outline">🖨️</SmallBtn>
-                          <SmallBtn>Ver</SmallBtn>
-                        </div>
-                      </Td>
-                    </tr>
-                  ))
+                  filtered.map((r) => {
+                    const fechaObj = new Date(r.fecha);
+                    const hora = fechaObj.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+                    return (
+                      <tr
+                        key={r.id_venta}
+                        className={`hover:transition ${
+                          theme === "dark"
+                            ? "hover:bg-slate-800/60"
+                            : "hover:bg-orange-50"
+                        }`}
+                      >
+                        <Td>{r.id_venta}</Td>
+                        <Td>{fechaObj.toLocaleDateString("es-CO")}</Td>
+                        <Td>{r.nombre_usuario}</Td>
+                        <Td>{r.metodo_pago}</Td>
+                        <Td className="text-rose-600 dark:text-rose-400 font-medium">{hora}</Td>
+                        <Td className="text-emerald-600 dark:text-emerald-400 font-semibold">
+                          SALDADA
+                        </Td>
+                        <Td className="text-right font-semibold">{money(r.total)}</Td>
+                        <Td className="text-center">
+                          <div className="flex justify-center gap-2">
+                            <SmallBtn variant="outline" onClick={() => window.print()}>
+                              <Printer size={14} />
+                            </SmallBtn>
+                            <SmallBtn onClick={() => alert(`Detalles de factura #${r.id_venta}: ${r.observaciones || 'Sin observaciones'}`)}>
+                              Ver
+                            </SmallBtn>
+                          </div>
+                        </Td>
+                      </tr>
+                    );
+                  })
                 ) : (
                   <tr>
                     <Td colSpan={8} className="text-center py-8 text-slate-500 dark:text-slate-400">
@@ -255,7 +303,7 @@ function ConsultaFacturasBody({ onClose }) {
 
         {/* Botón de cierre */}
         <div className="flex justify-end">
-          <GradientBtn onClick={onClose}>Cerrar</GradientBtn>
+          <GradientBtn onClose={onClose}>Cerrar</GradientBtn>
         </div>
       </div>
     </>
@@ -333,10 +381,10 @@ function SmallBtn({ children, variant = "solid", onClick }) {
   );
 }
 
-function GradientBtn({ children, onClick }) {
+function GradientBtn({ children, onClose }) {
   return (
     <button
-      onClick={onClick}
+      onClick={onClose}
       className="px-5 py-2 rounded-lg text-sm font-medium text-white bg-gradient-to-r from-orange-400 to-fuchsia-500 hover:brightness-110 transition"
     >
       {children}

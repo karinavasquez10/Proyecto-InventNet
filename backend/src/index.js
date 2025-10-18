@@ -10,6 +10,7 @@ import configRoutes from "./routes/config.js";
 import cajasRoutes from "./routes/cajas.js";
 import sucursalesRoutes from "./routes/sucursales.js";
 import ventasRoutes from "./routes/ventas.js";
+import movimientosCajaRoutes from "./routes/movimientosCaja.js";
 
 dotenv.config();
 
@@ -30,6 +31,7 @@ app.use("/api/config", configRoutes);
 app.use("/api/cajas", cajasRoutes);
 app.use("/api/sucursales", sucursalesRoutes);
 app.use("/api/ventas", ventasRoutes);
+app.use("/api/movimientosCaja", movimientosCajaRoutes);
 
 
 // Añade un manejador de errores general

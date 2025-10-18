@@ -176,6 +176,7 @@ function Cobrar({ initialCliente = null, carrito = [], usuario, idCaja, onClose 
       }
       
       const data = await res.json();
+      console.log("Venta y movimiento creados:", data);  // Debug: Confirma movimiento
       alert(`✅ Venta registrada exitosamente. ID: ${data.id_venta}`);
       
       if (imprimir) {
@@ -233,9 +234,9 @@ function Cobrar({ initialCliente = null, carrito = [], usuario, idCaja, onClose 
 
             <div className="space-y-3 text-sm">
               <InfoRow label="Tipo de pago" value="CONTADO" />
-              <InfoRow label="Sub Total" value={money(subtotalBruto)} /> {/* Corregido: bruto */}
+              <InfoRow label="Sub Total" value={money(subtotalBruto)} />
               <InfoRow label="Descuento Global" value={money(descuentoGlobal)} />
-              <InfoRow label="Subtotal Neto" value={money(subtotalNeto)} /> {/* Renombrado para claridad */}
+              <InfoRow label="Subtotal Neto" value={money(subtotalNeto)} />
               <InfoRow label="IVA (19%)" value={money(impuesto)} />
               
               <div className="flex justify-between items-center pt-2 border-t border-slate-200 dark:border-slate-700">
@@ -417,7 +418,7 @@ function Cobrar({ initialCliente = null, carrito = [], usuario, idCaja, onClose 
 
       {/* Modal Nuevo Cliente */}
       {showNuevoCliente && (
-        <div className="absolute inset-0 z-[70] flex items-center justify-center bg-black/50" onClick={() => setShowNuevoCliente(false)}>
+        <div className="absolute inset-0 z-[70] flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setShowNuevoCliente(false)}>
           <div
             className={`w-[450px] rounded-2xl shadow-2xl p-6 ${
               theme === "dark" ? "bg-slate-900 text-white" : "bg-white text-slate-800"
@@ -515,7 +516,7 @@ function Cobrar({ initialCliente = null, carrito = [], usuario, idCaja, onClose 
             <div className="flex gap-2 mt-5">
               <button
                 onClick={() => setShowNuevoCliente(false)}
-                className="flex-1 py-2 rounded-lg bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 transition text-sm font-medium"
+                className="flex-1 py-2 rounded-lg bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-300 transition text-sm font-medium"
               >
                 Cancelar
               </button>

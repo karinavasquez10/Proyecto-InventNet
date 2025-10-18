@@ -117,14 +117,15 @@ router.get('/', async (req, res) => {
                 u.email as email_usuario,
                 s.nombre as nombre_sucursal
             FROM caja c
-            LEFT JOIN usuarios u ON c.id_usuario = u.id
+            LEFT JOIN usuarios u ON c.id_usuario = u.id_usuario
             LEFT JOIN sucursales s ON c.id_sucursal = s.id_sucursal
             ORDER BY c.fecha_apertura DESC
         `);
         res.json(rows);
     } catch (error) {
         console.error('Error al obtener cajas:', error);
-        res.status(500).send('Error al obtener cajas');
+        if (error.sqlMessage) console.error('SQL Error:', error.sqlMessage);  // Debug MySQL/MariaDB
+        res.status(500).send('Error al obtener cajas: ' + error.message);
     }
 });
 
@@ -133,14 +134,15 @@ router.get('/:id_caja', async (req, res) => {
     try {
         const { id_caja } = req.params;
         
+        // Obtener datos de la caja
         const [cajas] = await pool.query(`
             SELECT 
                 c.*,
                 u.nombre as nombre_usuario,
-                u.email as email_usuario,
+                u.correo as email_usuario,
                 s.nombre as nombre_sucursal
             FROM caja c
-            LEFT JOIN usuarios u ON c.id_usuario = u.id
+            LEFT JOIN usuarios u ON c.id_usuario = u.id_usuario
             LEFT JOIN sucursales s ON c.id_sucursal = s.id_sucursal
             WHERE c.id_caja = ?
         `, [id_caja]);
@@ -149,13 +151,13 @@ router.get('/:id_caja', async (req, res) => {
             return res.status(404).send('Caja no encontrada');
         }
 
-        // Obtener ventas asociadas a esta caja
+        // Solo si caja existe, fetch ventas
         const [ventas] = await pool.query(`
             SELECT 
                 v.*,
                 cl.nombre as nombre_cliente
             FROM ventas v
-            LEFT JOIN clientes cl ON v.id_cliente = cl.id
+            LEFT JOIN clientes cl ON v.id_cliente = cl.id_cliente
             WHERE v.id_caja = ?
             ORDER BY v.fecha DESC
         `, [id_caja]);
@@ -166,7 +168,8 @@ router.get('/:id_caja', async (req, res) => {
         });
     } catch (error) {
         console.error('Error al obtener detalle de caja:', error);
-        res.status(500).send('Error al obtener detalle de caja');
+        if (error.sqlMessage) console.error('SQL Error details:', error.sqlMessage);  // Debug MySQL/MariaDB
+        res.status(500).send('Error al obtener detalle de caja: ' + error.message);
     }
 });
 
@@ -193,7 +196,8 @@ router.get('/abierta/:id_usuario', async (req, res) => {
         res.json(cajas[0]);
     } catch (error) {
         console.error('Error al buscar caja abierta:', error);
-        res.status(500).send('Error al buscar caja abierta');
+        if (error.sqlMessage) console.error('SQL Error:', error.sqlMessage);  // Debug
+        res.status(500).send('Error al buscar caja abierta: ' + error.message);
     }
 });
 

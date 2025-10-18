@@ -3,7 +3,7 @@ import pool from "../config/database.js";
 
 const router = express.Router();
 
-// POST /api/ventas - Crear nueva venta con sus detalles
+// POST /api/ventas - Crear nueva venta con sus detalles y movimiento
 router.post('/', async (req, res) => {
     const connection = await pool.getConnection();
     try {
@@ -88,12 +88,24 @@ router.post('/', async (req, res) => {
             [total, id_caja]
         );
 
+        // 4. Registrar movimiento 'ingreso' por la venta
+        await connection.query(
+            `INSERT INTO movimientos_caja 
+            (id_caja, tipo, descripcion, monto) 
+            VALUES (?, 'ingreso', ?, ?)`,
+            [
+                id_caja,
+                `Venta ID: ${id_venta}`,
+                total
+            ]
+        );
+
         await connection.commit();
 
         res.status(201).json({
             success: true,
             id_venta,
-            message: 'Venta registrada exitosamente'
+            message: 'Venta y movimiento registrados exitosamente'
         });
 
     } catch (error) {
