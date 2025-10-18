@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 
@@ -18,6 +18,7 @@ function useSystemTheme() {
   return theme;
 }
 
+/* =============== Modal principal =============== */
 /* =============== Modal principal =============== */
 function ConsultaProductos({ open, onClose }) {
   const theme = useSystemTheme();
@@ -40,7 +41,7 @@ function ConsultaProductos({ open, onClose }) {
           className={`h-14 px-5 flex items-center justify-between transition-colors duration-300 ${
             theme === "dark"
               ? "bg-slate-800 border-b border-slate-700 text-white"
-              : "bg-gradient-to-r from-orange-400 via-pink-400 to-fuchsia-400 text-white"
+              : "bg-gradient-to-r from-orange-400 via-pink-400 to-fuchsia-500 text-white"
           }`}
         >
           <h2 className="text-base font-semibold">Consulta de Productos</h2>
@@ -69,253 +70,389 @@ function ConsultaProductos({ open, onClose }) {
   );
 }
 
+/* =============== URL de la API =============== */
+const API_URL = "http://localhost:5000/api";
+
 /* =============== Contenido del cuerpo =============== */
 const money = (n) =>
   (Number(n) || 0).toLocaleString("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 });
 
-const PRODUCTS = [
-  { id: 1, code: "A4", name: "CEBOLLA BLANCA PELADA", price: 4000, stock: -773.62, clase: "A", tipo: "BÁSCULA", categoria: "VERDURAS", status: "ACTIVO", calibrado: true, img: "https://via.placeholder.com/32x32.png?text=🥬" },
-  { id: 2, code: "CA10", name: "25 G-200% PRODUCTOS $10", price: 5300, stock: -22, clase: "B", tipo: "COMPRA Y VENTA", categoria: "ABARROTES", status: "ACTIVO", calibrado: false, img: "https://via.placeholder.com/32x32.png?text=🧃" },
-  { id: 3, code: "560918", name: "ACEITE BUENA SOYA X1000", price: 7500, stock: 50, clase: "A", tipo: "COMPRA Y VENTA", categoria: "ABARROTES", status: "INACTIVO", calibrado: true, img: "https://via.placeholder.com/32x32.png?text=🛢️" },
-  { id: 4, code: "594343", name: "ACEITE EL FRITON X2100", price: 11800, stock: 43, clase: "C", tipo: "COMPRA Y VENTA", categoria: "ABARROTES", status: "ACTIVO", calibrado: false, img: "https://via.placeholder.com/32x32.png?text=🛢️" },
-];
-
 function ConsultaProductosBody({ theme }) {
-  const [category, setCategory] = React.useState("Todas");
-  const [q, setQ] = React.useState("");
-  const [chip, setChip] = React.useState("TODOS");
-  const [page, setPage] = React.useState(1);
+  const [productos, setProductos] = useState([]);
+  const [categorias, setCategorias] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const [categoria, setCategoria] = useState("Todas");
+  const [q, setQ] = useState("");
+  const [chip, setChip] = useState("TODOS");
+  const [page, setPage] = useState(1);
+  const [sortBy, setSortBy] = useState("nombre");
+  const [sortDir, setSortDir] = useState("asc");
   const perPage = 10;
 
-  const categories = ["Todas", ...Array.from(new Set(PRODUCTS.map((p) => p.categoria)))];
-  const chipFilter = (p) =>
-    chip === "TODOS"
-      ? true
-      : chip === "POR CALIBRAR"
-      ? !p.calibrado
-      : chip === "CLASE A"
-      ? p.clase === "A"
-      : chip === "INACTIVOS"
-      ? p.status === "INACTIVO"
-      : true;
+  // Fetch productos y categorías al montar
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        // Fetch categorías
+        const resCat = await fetch(`${API_URL}/categorias`);
+        console.log("Fetching categorías URL:", `${API_URL}/categorias`);
+        if (!resCat.ok) {
+          console.error("Categorías status:", resCat.status);
+          throw new Error("Error cargando categorías");
+        }
+        const cats = await resCat.json();
+        console.log("Categorías data:", cats);
+        setCategorias(cats);
 
-  const filtered = PRODUCTS.filter((p) => {
-    const okCat = category === "Todas" || p.categoria === category;
-    const okQ =
-      !q ||
-      p.name.toLowerCase().includes(q.toLowerCase()) ||
-      p.code.toLowerCase().includes(q.toLowerCase());
-    return okCat && okQ && chipFilter(p);
+        // Fetch productos
+        const resProd = await fetch(`${API_URL}/products/productos`);
+        console.log("Fetching productos URL:", `${API_URL}/products/productos`);
+        console.log("Productos status:", resProd.status);
+        if (!resProd.ok) {
+          const errorText = await resProd.text();
+          console.error("Productos error:", errorText);
+          throw new Error(`Error ${resProd.status}: No se pudieron cargar productos.`);
+        }
+        const prods = await resProd.json();
+        console.log("Productos data:", prods);
+        setProductos(prods);
+      } catch (err) {
+        console.error("Error fetching data:", err);
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
+
+  // Filtros y ordenamiento
+  const filtered = productos.filter((p) => {
+    const matchQ = !q || (p.nombre && p.nombre.toLowerCase().includes(q.toLowerCase()));
+    const matchCat = categoria === "Todas" || p.nombre_categoria === categoria;
+    const matchChip = chip === "TODOS" ||
+      (chip === "BAJO STOCK" && Number(p.stock_actual) < Number(p.stock_minimo)) ||
+      (chip === "SIN STOCK" && Number(p.stock_actual) <= 0);
+    return matchQ && matchCat && matchChip;
+  }).sort((a, b) => {
+    let cmp = 0;
+    if (sortBy === "id_producto" || sortBy === "code") {
+      cmp = (Number(a.id_producto) || 0) - (Number(b.id_producto) || 0);
+    } else if (sortBy === "nombre") {
+      cmp = a.nombre.localeCompare(b.nombre);
+    } else if (sortBy === "stock") {
+      cmp = Number(b.stock_actual) - Number(a.stock_actual);
+    } else if (sortBy === "precio") {
+      cmp = Number(a.precio_venta) - Number(b.precio_venta);
+    }
+    return sortDir === "asc" ? cmp : -cmp;
   });
 
-  const pctCalibrados = filtered.length
-    ? Math.round((filtered.filter((p) => p.calibrado).length / filtered.length) * 100)
-    : 0;
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / perPage));
+  const totalPages = Math.ceil(filtered.length / perPage);
   const pageData = filtered.slice((page - 1) * perPage, page * perPage);
-  const go = (p) => setPage(Math.min(Math.max(1, p), totalPages));
 
-  React.useEffect(() => setPage(1), [category, q, chip]);
+  const go = (newPage) => {
+    if (newPage >= 1 && newPage <= totalPages) setPage(newPage);
+  };
 
-  return (
-    <div className="p-5">
-      {/* Progreso */}
-      <div className="mb-4">
-        <div className="text-sm font-medium text-slate-700 dark:text-slate-700 mb-2">
-          Porcentaje de productos calibrados
-        </div>
-        <div className="w-full h-3 bg-slate-500 dark:bg-slate-800 rounded-full overflow-hidden">
-          <div
-            className="h-3 bg-gradient-to-r from-orange-500 to-fuchsia-500 transition-all"
-            style={{ width: `${pctCalibrados}%` }}
-          />
-        </div>
-        <div className="mt-1 text-xs text-slate-600 dark:text-slate-600">
-          {pctCalibrados}%
+  // Handler para dropdown de ordenamiento
+  const handleSortChange = (option) => {
+    const [field, ...rest] = option.split(" ");
+    const direction = rest.join(" ");
+    setSortBy(field === "Código" ? "code" : field.toLowerCase());
+    setSortDir(
+      direction === "(Ascendente)" ||
+        direction === "(A-Z)" ||
+        direction === "(Bajo-Alto)"
+        ? "asc"
+        : "desc"
+    );
+  };
+
+  // Formateo para stock (decimal a entero para display)
+  const formatStock = (n) =>
+    Number(n).toLocaleString("es-CO", { maximumFractionDigits: 0 });
+
+  const getStockColor = (p) => {
+    const actual = Number(p.stock_actual);
+    const min = Number(p.stock_minimo);
+    return actual < min ? "text-red-600" : "text-green-600";
+  };
+
+  const getStockTooltip = (p) => {
+    const actual = Number(p.stock_actual);
+    const min = Number(p.stock_minimo);
+    return actual < min ? "Stock bajo: Reabastecer pronto" : "Stock óptimo";
+  };
+
+  // Mapping simple para emoji en img (basado en categoría)
+  const getEmoji = (cat) => {
+    const emojis = {
+      "ABARROTES": "🛒",
+      "VERDURAS": "🥦",
+      "FRUTAS": "🍎",
+      "CARNES": "🥩",
+      "default": "📦"
+    };
+    return emojis[cat] || emojis.default;
+  };
+
+  if (loading) {
+    // Cambiado: el contenedor ocupa todo el alto disponible, incluido el padding lateral, y el interior ocupa el alto restante del modal
+    return (
+      <div className="w-full h-[calc(88vh-3.5rem)] flex items-center justify-center">
+        <div className="flex-1 flex items-center justify-center min-h-0 min-w-0">
+          <p className="text-center text-lg">Cargando productos...</p>
         </div>
       </div>
+    );
+  }
 
+  if (error) {
+    return (
+      <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
+        <div className="text-center p-8 rounded-2xl bg-white dark:bg-slate-900">
+          <h3 className="text-red-600 mb-2 text-lg">Error al cargar</h3>
+          <p className="mb-4 text-slate-600 dark:text-slate-400">{error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition"
+          >
+            Reintentar
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Definir sort_dir solo para el select de la vista
+  // Para lógica usar sortDir
+  const sort_dir = sortDir;
+
+  return (
+    <div className="p-5 space-y-6">
       {/* Filtros */}
       <div
-        className={`rounded-xl p-4 mb-4 shadow-sm border transition ${
+        className={`p-5 rounded-xl border shadow-md transition ${
           theme === "dark"
-            ? "bg-slate-900 border-slate-700"
-            : "bg-white border-slate-600"
+            ? "bg-slate-800 border-slate-700"
+            : "bg-white border-slate-200"
         }`}
       >
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="text-sm font-semibold">
-            Lista de productos ({filtered.length})
+        <h3 className="font-semibold mb-4 flex items-center gap-2">
+          <span className="inline-block px-2 py-1 rounded text-white text-xs bg-gradient-to-r from-orange-400 to-fuchsia-500">
+            Filtros
+          </span>
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+          <div>
+            <label className="block text-xs font-medium mb-1">Buscar</label>
+            <input
+              type="text"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Nombre del producto..."
+              className={`w-full px-3 py-2 rounded-lg border text-sm transition focus:outline-none focus:ring-2 ${
+                theme === "dark"
+                  ? "bg-slate-800 border-slate-700 text-white focus:ring-fuchsia-400"
+                  : "bg-white border-slate-300 text-slate-800 focus:ring-orange-300"
+              }`}
+            />
           </div>
-          <div className="hidden sm:block w-px h-5 bg-slate-600 dark:bg-slate-700" />
-
-          {/* Filtro categoría */}
-          <div className="flex items-center gap-2">
-            <label className="text-xs text-slate-700 dark:text-slate-600">
-              Categoría
-            </label>
+          <div>
+            <label className="block text-xs font-medium mb-1">Categoría</label>
             <select
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              className={`rounded-lg border px-3 py-1.5 text-sm transition
-                ${
-                  theme === "dark"
-                    ? "border-slate-700 bg-slate-800 text-slate-500 focus:ring-2 focus:ring-fuchsia-400"
-                    : "border-slate-300 bg-white text-slate-800 focus:ring-2 focus:ring-orange-300"
-                }`}
+              value={categoria}
+              onChange={(e) => setCategoria(e.target.value)}
+              className={`w-full px-3 py-2 rounded-lg border text-sm transition focus:outline-none focus:ring-2 ${
+                theme === "dark"
+                  ? "bg-slate-800 border-slate-700 text-white focus:ring-fuchsia-400"
+                  : "bg-white border-slate-300 text-slate-800 focus:ring-orange-300"
+              }`}
             >
-              {categories.map((c) => (
-                <option key={c}>{c}</option>
+              {["Todas", ...categorias.map((c) => c.nombre)].map((cat) => (
+                <option key={cat}>{cat}</option>
               ))}
             </select>
           </div>
-
-          {/* Buscador */}
-          <div className="flex items-center gap-2">
-            <label className="text-xs text-slate-700 dark:text-slate-600">
-              Buscar
-            </label>
-            <input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Nombre o código"
-              className={`rounded-lg border px-3 py-1.5 text-sm w-56 transition
-                ${
-                  theme === "dark"
-                    ? "border-slate-700 bg-slate-800 text-slate-100 focus:ring-2 focus:ring-fuchsia-400"
-                    : "border-slate-300 bg-white text-slate-800 focus:ring-2 focus:ring-orange-300"
-                }`}
-            />
+          <div>
+            <label className="block text-xs font-medium mb-1">Filtro Stock</label>
+            <select
+              value={chip}
+              onChange={(e) => setChip(e.target.value)}
+              className={`w-full px-3 py-2 rounded-lg border text-sm transition focus:outline-none focus:ring-2 ${
+                theme === "dark"
+                  ? "bg-slate-800 border-slate-700 text-white focus:ring-fuchsia-400"
+                  : "bg-white border-slate-300 text-slate-800 focus:ring-orange-300"
+              }`}
+            >
+              <option value="TODOS">TODOS</option>
+              <option value="BAJO STOCK">BAJO STOCK</option>
+              <option value="SIN STOCK">SIN STOCK</option>
+            </select>
           </div>
-
-          {/* Chips */}
-          <div className="ml-auto flex items-center gap-2 flex-wrap">
-            {["TODOS", "POR CALIBRAR", "CLASE A", "INACTIVOS"].map((t) => (
-              <button
-                key={t}
-                onClick={() => setChip(t)}
-                className={`px-3 py-1.5 rounded-full text-xs border transition
-                  ${
-                    chip === t
-                      ? "bg-gradient-to-r from-orange-400 to-fuchsia-400 text-white"
-                      : theme === "dark"
-                      ? "bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700"
-                      : "bg-white border-slate-200 text-slate-700 hover:bg-orange-50"
-                  }`}
-              >
-                {t}
-              </button>
-            ))}
-           
+          <div>
+            <label className="block text-xs font-medium mb-1">Ordenar por:</label>
+            <select
+              value={`${sortBy} ${sort_dir === "asc" ? "(Ascendente)" : "(Descendente)"}`}
+              onChange={(e) => handleSortChange(e.target.value)}
+              className={`w-full px-3 py-2 rounded-lg border text-sm transition focus:outline-none focus:ring-2 ${
+                theme === "dark"
+                  ? "bg-slate-800 border-slate-700 text-white focus:ring-fuchsia-400"
+                  : "bg-white border-slate-300 text-slate-800 focus:ring-orange-300"
+              }`}
+            >
+              <option value="nombre (A-Z)">Nombre (A-Z)</option>
+              <option value="nombre (Z-A)">Nombre (Z-A)</option>
+              <option value="code (Ascendente)">Código (Ascendente)</option>
+              <option value="code (Descendente)">Código (Descendente)</option>
+              <option value="precio (Bajo-Alto)">Precio (Bajo-Alto)</option>
+              <option value="precio (Alto-Bajo)">Precio (Alto-Bajo)</option>
+              <option value="stock (Alto-Bajo)">Stock (Alto-Bajo)</option>
+              <option value="stock (Bajo-Alto)">Stock (Bajo-Alto)</option>
+            </select>
           </div>
         </div>
       </div>
 
       {/* Tabla */}
       <div
-        className={`overflow-x-auto rounded-xl border transition ${
+        className={`p-5 rounded-xl border shadow-md transition ${
           theme === "dark"
-            ? "border-slate-700 bg-slate-900"
-            : "border-slate-200 bg-white"
+            ? "bg-slate-800 border-slate-700"
+            : "bg-white border-slate-200"
         }`}
       >
-        <table className="min-w-full text-sm">
-          <thead
-            className={`${
-              theme === "dark"
-                ? "bg-slate-800 text-slate-300"
-                : "bg-orange-50 text-slate-700"
-            }`}
-          >
-            <tr>
-              <Th>#</Th>
-              <Th>Img</Th>
-              <Th>Código</Th>
-              <Th>Nombre</Th>
-              <Th className="text-right">Precio</Th>
-              <Th className="text-right">Stock</Th>
-              <Th>Clase</Th>
-              <Th>Tipo</Th>
-              <Th>Categoría</Th>
-              <Th className="text-center">Acciones</Th>
-            </tr>
-          </thead>
-          <tbody className={`divide-y ${theme === "dark" ? "divide-slate-700" : "divide-slate-200"}`}>
-            {pageData.map((p, i) => (
-              <tr
-                key={p.id}
-                className={`transition ${
-                  theme === "dark" ? "hover:bg-slate-800/60" : "hover:bg-orange-50"
-                }`}
-              >
-                <Td>{(page - 1) * perPage + i + 1}</Td>
-                <Td>
-                  <img src={p.img} alt="" className="w-8 h-8 rounded object-cover" />
-                </Td>
-                <Td>{p.code}</Td>
-                <Td className="font-medium">{p.name}</Td>
-                <Td className="text-right">{money(p.price)}</Td>
-                <Td className={`text-right ${p.stock < 0 ? "text-rose-600" : ""}`}>
-                  {p.stock.toLocaleString("es-CO")}
-                </Td>
-                <Td>
-                  <span
-                    className={`px-2 py-0.5 rounded text-xs border ${
-                      p.clase === "A"
-                        ? "bg-amber-50 border-amber-200 text-amber-800"
-                        : "bg-slate-50 border-slate-200 text-slate-700"
-                    }`}
-                  >
-                    {p.clase}
-                  </span>
-                </Td>
-                <Td>{p.tipo}</Td>
-                <Td>{p.categoria}</Td>
-                <Td className="text-center">
-                  <div className="flex items-center justify-center gap-2">
-                    <SmallBtn variant="outline">✏️</SmallBtn>
-                    <SmallBtn>⤴️</SmallBtn>
-                  </div>
-                </Td>
-              </tr>
-            ))}
-            {!pageData.length && (
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead
+              className={`text-left ${
+                theme === "dark"
+                  ? "bg-slate-700 text-slate-200"
+                  : "bg-slate-50 text-slate-700"
+              }`}
+            >
               <tr>
-                <Td colSpan={10} className="text-center py-10 text-slate-500">
-                  No hay resultados.
-                </Td>
+                <th className="px-3 py-2 font-medium">#</th>
+                <th className="px-3 py-2 font-medium">Imagen</th>
+                <th className="px-3 py-2 font-medium">Código</th>
+                <th className="px-3 py-2 font-medium">Nombre</th>
+                <th className="text-right px-3 py-2 font-medium">Precio</th>
+                <th className="text-right px-3 py-2 font-medium">Stock</th>
+                <th className="px-3 py-2 font-medium">Tipo</th>
+                <th className="px-3 py-2 font-medium">Categoría</th>
+                <th className="text-center px-3 py-2 font-medium">Acciones</th>
               </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Paginación */}
-      <div className="mt-3 flex items-center justify-between text-xs text-slate-600 dark:text-slate-400">
-        <div>Página {page} de {totalPages}</div>
-        <div className="flex items-center gap-1">
-          <PagerBtn onClick={() => go(1)}>{"<<"}</PagerBtn>
-          <PagerBtn onClick={() => go(page - 1)}>{"<"}</PagerBtn>
-          {Array.from({ length: totalPages }).slice(0, 6).map((_, i) => {
-            const n = i + 1;
-            return <PagerBtn key={n} active={n === page} onClick={() => go(n)}>{n}</PagerBtn>;
-          })}
-          <PagerBtn onClick={() => go(page + 1)}>{">"}</PagerBtn>
-          <PagerBtn onClick={() => go(totalPages)}>{">>"}</PagerBtn>
+            </thead>
+            <tbody
+              className={`divide-y ${
+                theme === "dark" ? "divide-slate-700" : "divide-slate-200"
+              }`}
+            >
+              {pageData.map((p, i) => (
+                <tr
+                  key={p.id_producto}
+                  className={`transition ${
+                    theme === "dark"
+                      ? "hover:bg-slate-800/60"
+                      : "hover:bg-orange-50"
+                  }`}
+                >
+                  <td className="px-3 py-2">{(page - 1) * perPage + i + 1}</td>
+                  <td className="px-3 py-2">
+                    <div className="w-8 h-8 rounded bg-gradient-to-br from-orange-400 to-fuchsia-500 flex items-center justify-center text-white text-xs font-bold">
+                      {getEmoji(p.nombre_categoria)}
+                    </div>
+                  </td>
+                  <td className="px-3 py-2">P{p.id_producto}</td>
+                  <td className="px-3 py-2 font-medium">{p.nombre}</td>
+                  <td className="text-right px-3 py-2">{money(p.precio_venta)}</td>
+                  <td
+                    className={`text-right px-3 py-2 ${getStockColor(p)}`}
+                    title={getStockTooltip(p)}
+                  >
+                    {formatStock(p.stock_actual)}
+                  </td>
+                  <td className="px-3 py-2">COMPRA Y VENTA</td>
+                  <td className="px-3 py-2">{p.nombre_categoria}</td>
+                  <td className="text-center px-3 py-2">
+                    <div className="flex items-center justify-center gap-2">
+                      <SmallBtn
+                        variant="outline"
+                        onClick={() => alert(`Editar producto ${p.nombre}`)}
+                      >
+                        ✏️
+                      </SmallBtn>
+                      <SmallBtn
+                        onClick={() => alert(`Exportar producto ${p.nombre}`)}
+                      >
+                        ⤴️
+                      </SmallBtn>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {!pageData.length ? (
+                <tr>
+                  <td
+                    colSpan={9}
+                    className="text-center py-10 text-slate-500 dark:text-slate-400"
+                  >
+                    No hay resultados para los filtros seleccionados.
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
         </div>
+
+        {/* Paginación */}
+        {totalPages > 1 && (
+          <div className="mt-3 flex items-center justify-between text-xs text-slate-600 dark:text-slate-400">
+            <div>
+              Página {page} de {totalPages} ({filtered.length} total)
+            </div>
+            <div className="flex items-center gap-1">
+              <PagerBtn onClick={() => go(1)}>{"<<"}</PagerBtn>
+              <PagerBtn onClick={() => go(page - 1)} disabled={page === 1}>
+                {"<"}
+              </PagerBtn>
+              {Array.from({ length: Math.min(5, totalPages) })
+                .slice(Math.max(0, page - 3))
+                .map((_, i) => {
+                  const n = page - 3 + i + 1;
+                  if (n > totalPages || n < 1) return null;
+                  return (
+                    <PagerBtn key={n} active={n === page} onClick={() => go(n)}>
+                      {n}
+                    </PagerBtn>
+                  );
+                })}
+              {totalPages > 5 && page < totalPages - 2 && <span>...</span>}
+              <PagerBtn
+                onClick={() => go(page + 1)}
+                disabled={page === totalPages}
+              >
+                {">"}
+              </PagerBtn>
+              <PagerBtn
+                onClick={() => go(totalPages)}
+                disabled={page === totalPages}
+              >
+                {">>"}
+              </PagerBtn>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
 /* ===== UI Helpers ===== */
-function Th({ children, className = "" }) {
-  return <th className={`px-3 py-2 font-medium ${className}`}>{children}</th>;
-}
-function Td({ children, className = "", colSpan }) {
-  return <td colSpan={colSpan} className={`px-3 py-2 ${className}`}>{children}</td>;
-}
 function SmallBtn({ children, variant = "solid", onClick }) {
   const base = "px-2.5 py-1.5 rounded-md text-xs font-medium transition";
   const style =
@@ -328,14 +465,16 @@ function SmallBtn({ children, variant = "solid", onClick }) {
     </button>
   );
 }
-function PagerBtn({ children, onClick, active = false }) {
+function PagerBtn({ children, onClick, active = false, disabled = false }) {
+  if (disabled)
+    return <span className="px-2 py-1 text-slate-400">{children}</span>;
   return (
     <button
       onClick={onClick}
       className={`px-2 py-1 rounded border transition ${
         active
           ? "bg-gradient-to-r from-orange-400 to-fuchsia-500 text-white border-none"
-          : "border-slate-300 dark:border-slate-700 hover:bg-orange-50 dark:hover:bg-slate-700"
+          : "border-slate-300 dark:border-slate-700 hover:bg-orange-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300"
       }`}
       type="button"
     >

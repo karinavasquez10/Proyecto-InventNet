@@ -13,6 +13,7 @@ import {
   Sun,
   LogOut,
   X,
+  Search
 } from "lucide-react";
 import Cobrar from "./Cobrar";
 import Catalogo from "./Catalogo";
@@ -35,7 +36,6 @@ function useProfilePhoto(userId) {
   const pollingRef = useRef();
 
   useEffect(() => {
-    let mounted = true;
     const fetchPhoto = async () => {
       if (!userId) {
         setPhoto("");
@@ -58,7 +58,6 @@ function useProfilePhoto(userId) {
     pollingRef.current = setInterval(fetchPhoto, 15000);
 
     return () => {
-      mounted = false;
       clearInterval(pollingRef.current);
     };
   }, [userId]);
@@ -151,7 +150,7 @@ function Home() {
           id: p.id_producto,
           name: p.nombre,
           price: p.precio_venta,
-          category: p.id_categoria,
+          category: p.nombre_categoria,
           stock: p.stock_actual,
           image: "🛒",
         }));
@@ -171,10 +170,15 @@ function Home() {
   }, []);
 
   // Filtrar productos
-  const categoryId = categories.find((cat) => cat.nombre === selectedCategory)?.id;
-  const filteredProducts = products.filter((p) => 
-    (selectedCategory === "Todas" || p.category === categoryId) && p.stock > 0
-  );
+const filteredProducts = products.filter((p) => 
+  (selectedCategory === "Todas" || p.category === selectedCategory) &&
+  p.stock > 0 &&
+  (!searchQuery || p.name.toLowerCase().includes(searchQuery.toLowerCase()))
+);
+
+  const searchResults = products.filter((p) => 
+    p.stock > 0 && p.name.toLowerCase().includes(searchQuery.toLowerCase())
+  ).slice(0, 5);
 
   // Funciones carrito
   const addToCart = (p) => {
@@ -312,7 +316,7 @@ function Home() {
 
         {/* Productos */}
         <section className="flex-1 overflow-y-auto p-3">
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-7 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 gap-3">
             {filteredProducts.map((product) => (
               <div
                 key={product.id}
@@ -358,17 +362,44 @@ function Home() {
             <h2 className="text-md font-semibold">Factura</h2>
           </div>
           <input
-            type="text"
-            placeholder="Buscar producto..."
-            className={`w-full rounded-lg p-2 text-sm focus:ring-2 ${
-              theme === "dark"
-                ? "bg-slate-800 border border-slate-700 text-white focus:ring-orange-400"
-                : "bg-white border border-orange-200 text-slate-700 focus:ring-orange-400"
-            }`}
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Buscar producto por nombre..."
+              className={`w-full pl-10 pr-4 py-2 rounded-full border-2 focus:border-orange-400 focus:outline-none transition-colors ${
+                theme === "dark"
+                  ? "bg-slate-800 border-slate-700 text-white placeholder-slate-400"
+                  : "bg-white border-slate-300 text-slate-800 placeholder-slate-500"
+              }`}
+            />
         </div>
+
+              {/* ← MEJORA: Dropdown de resultados sugeridos */}
+        {searchQuery && searchResults.length > 0 && (
+          <div className="max-h-96 overflow-y-auto border-t p-2 space-y-2">
+            {searchResults.map((product) => (
+              <button
+                key={product.id}
+                onClick={() => {
+                  setSearchQuery("");  // Limpia búsqueda al seleccionar
+                  addToCart(product);  // ← MEJORA: Agrega directamente al carrito
+                }}
+                className={`w-full p-3 rounded-lg text-left transition hover:bg-orange-50 dark:hover:bg-slate-700 ${
+                  theme === "dark" ? "text-slate-300" : "text-slate-700"
+                }`}
+              >
+                <div className="font-semibold">{product.name}</div>
+                <div className="text-xs text-slate-500 dark:text-slate-400">{product.price.toLocaleString("es-CO", { style: "currency", currency: "COP" })}</div>
+              </button>
+            ))}
+          </div>
+        )}
+
+      {searchQuery && searchResults.length === 0 && (
+          <div className="p-4 text-center text-slate-500 dark:text-slate-400">
+            No se encontraron resultados.
+          </div>
+        )}
 
         <div className="flex-1 overflow-y-auto p-3">
           {cart.length === 0 ? (
