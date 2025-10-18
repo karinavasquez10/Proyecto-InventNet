@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { X, UserPlus } from "lucide-react";
+import { useNavigate } from "react-router-dom"; // ✅ Importar aquí
 
 /* ======= Hook para sincronizar el modo de color global ======= */
+
 function useSystemTheme() {
   const [theme, setTheme] = useState(
     document.documentElement.classList.contains("dark") ? "dark" : "light"
@@ -25,6 +27,8 @@ function useSystemTheme() {
 /* ======= Componente principal ======= */
 function Cobrar({ initialCliente = null, carrito = [], usuario, idCaja, onClose }) {
   const theme = useSystemTheme();
+
+  const navigate = useNavigate();
   const [efectivo, setEfectivo] = useState("");
   const [cliente, setCliente] = useState(initialCliente);
   const [showNuevoCliente, setShowNuevoCliente] = useState(false);
@@ -36,11 +40,11 @@ function Cobrar({ initialCliente = null, carrito = [], usuario, idCaja, onClose 
     correo: "",
     tipo: "persona",
   });
-  
-  // normalizar items recibidos
+
+  // Normalizar items recibidos
   const [items, setItems] = useState([]);
   const [descuentoGlobal, setDescuentoGlobal] = useState(0);
-  
+
   useEffect(() => {
     setItems(
       (carrito || []).map((it) => ({
@@ -61,14 +65,14 @@ function Cobrar({ initialCliente = null, carrito = [], usuario, idCaja, onClose 
       .then((d) => {
         if (d && d.impuesto) setImpuestoRate(parseFloat(d.impuesto));
       })
-      .catch((err) => console.warn("Error cargando tasa de impuesto:", err)); // Silencioso
+      .catch((err) => console.warn("Error cargando tasa de impuesto:", err));
   }, []);
 
   const handleNumberClick = (num) => setEfectivo(efectivo + num);
   const handleClear = () => setEfectivo("");
   const handleBackspace = () => setEfectivo(efectivo.slice(0, -1));
 
-  // Cálculos corregidos: subtotal bruto sin desc global
+  // Cálculos
   function calcularSubtotalBruto() {
     return items.reduce(
       (s, it) => s + it.precio_unitario * it.cantidad - (it.descuento || 0),
@@ -78,11 +82,11 @@ function Cobrar({ initialCliente = null, carrito = [], usuario, idCaja, onClose 
 
   const subtotalBruto = calcularSubtotalBruto();
   const subtotalNeto = subtotalBruto - descuentoGlobal;
-  
+
   function calcularImpuesto(subtotal) {
     return subtotal * impuestoRate;
   }
-  
+
   function calcularTotal(subtotal, impuesto) {
     return subtotal + impuesto;
   }
@@ -105,18 +109,18 @@ function Cobrar({ initialCliente = null, carrito = [], usuario, idCaja, onClose 
       alert("Nombre e identificación son obligatorios");
       return;
     }
-    
+
     const res = await fetch("http://localhost:5000/api/clientes", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(nuevoCliente),
     });
-    
+
     if (!res.ok) {
       alert("Error creando cliente");
       return;
     }
-    
+
     const c = await res.json();
     setCliente(c);
     setShowNuevoCliente(false);
@@ -140,20 +144,24 @@ function Cobrar({ initialCliente = null, carrito = [], usuario, idCaja, onClose 
       alert("No hay caja abierta. Abra una caja antes de facturar.");
       return;
     }
-    
+
     const subtotalFinal = subtotalNeto;
     const impuestoFinal = calcularImpuesto(subtotalFinal);
     const totalFinal = calcularTotal(subtotalFinal, impuestoFinal);
-    
+
     const payload = {
-      id_cliente: cliente ? cliente.id_cliente || cliente.id : null, // Consistente con DB
-      id_usuario: usuario.id_usuario || usuario.id, // Asumir id_usuario en DB
+      id_cliente: cliente ? cliente.id_cliente || cliente.id : null,
+      id_usuario: usuario.id_usuario || usuario.id,
       id_caja: idCaja,
       subtotal: subtotalFinal,
       impuesto: impuestoFinal,
       total: totalFinal,
       metodo_pago,
-      observaciones: `Descuento global: ${descuentoGlobal.toLocaleString('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 })}`,
+      observaciones: `Descuento global: ${descuentoGlobal.toLocaleString("es-CO", {
+        style: "currency",
+        currency: "COP",
+        maximumFractionDigits: 0,
+      })}`,
       items: items.map((it) => ({
         id_producto: it.id_producto,
         cantidad: it.cantidad,
@@ -162,27 +170,29 @@ function Cobrar({ initialCliente = null, carrito = [], usuario, idCaja, onClose 
         total: it.precio_unitario * it.cantidad - (it.descuento || 0),
       })),
     };
-    
+
     try {
       const res = await fetch("http://localhost:5000/api/ventas", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      
+
       if (!res.ok) {
         const errorText = await res.text();
-        throw new Error(errorText || `Error ${res.status}: No se pudo guardar la venta.`);
+        throw new Error(
+          errorText || `Error ${res.status}: No se pudo guardar la venta.`
+        );
       }
-      
+
       const data = await res.json();
       console.log("Venta y movimiento creados:", data);  // Debug: Confirma movimiento
       alert(`✅ Venta registrada exitosamente. ID: ${data.id_venta}`);
-      
+
       if (imprimir) {
         setTimeout(() => window.print?.(), 300);
       }
-      
+
       onClose();
     } catch (err) {
       console.error("Error en confirmarVenta:", err);
@@ -237,8 +247,6 @@ function Cobrar({ initialCliente = null, carrito = [], usuario, idCaja, onClose 
               <InfoRow label="Sub Total" value={money(subtotalBruto)} />
               <InfoRow label="Descuento Global" value={money(descuentoGlobal)} />
               <InfoRow label="Subtotal Neto" value={money(subtotalNeto)} />
-              <InfoRow label="IVA (19%)" value={money(impuesto)} />
-              
               <div className="flex justify-between items-center pt-2 border-t border-slate-200 dark:border-slate-700">
                 <span className="font-semibold">Cliente:</span>
                 {cliente ? (
@@ -258,15 +266,21 @@ function Cobrar({ initialCliente = null, carrito = [], usuario, idCaja, onClose 
               </div>
             </div>
 
-            {/* Lista de items */}
             <div className="mt-4 space-y-2 max-h-[200px] overflow-y-auto">
               {items.map((item, idx) => (
-                <div key={idx} className={`p-2 rounded-lg text-xs ${
-                  theme === "dark" ? "bg-slate-800" : "bg-white border border-slate-200"
-                }`}>
+                <div
+                  key={idx}
+                  className={`p-2 rounded-lg text-xs ${
+                    theme === "dark"
+                      ? "bg-slate-800"
+                      : "bg-white border border-slate-200"
+                  }`}
+                >
                   <div className="flex justify-between">
                     <span className="font-medium">{item.nombre}</span>
-                    <span>{money(item.precio_unitario * item.cantidad - item.descuento)}</span>
+                    <span>
+                      {money(item.precio_unitario * item.cantidad - item.descuento)}
+                    </span>
                   </div>
                   <div className="text-slate-500 dark:text-slate-400">
                     {item.cantidad} x {money(item.precio_unitario)}
@@ -333,26 +347,11 @@ function Cobrar({ initialCliente = null, carrito = [], usuario, idCaja, onClose 
           {/* Teclado numérico */}
           <div className="grid grid-cols-3 gap-2 mb-3">
             {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (
-              <NumButton
-                key={n}
-                label={n}
-                onClick={() => handleNumberClick(n.toString())}
-              />
+              <NumButton key={n} label={n} onClick={() => handleNumberClick(n.toString())} />
             ))}
             <NumButton label="⬅" onClick={handleBackspace} />
             <NumButton label="0" onClick={() => handleNumberClick("0")} />
             <NumButton label="CE" variant="danger" onClick={handleClear} />
-          </div>
-
-          {/* Botones rápidos */}
-          <div className="grid grid-cols-2 gap-2 mb-3">
-            {[1000, 2000, 5000, 10000, 20000].map((val) => (
-              <QuickButton
-                key={val}
-                label={`+ ${money(val)}`}
-                onClick={() => setEfectivo((efectivoInt + val).toString())}
-              />
-            ))}
           </div>
 
           {/* Descuentos */}
@@ -403,22 +402,30 @@ function Cobrar({ initialCliente = null, carrito = [], usuario, idCaja, onClose 
               Confirmar
             </button>
           </div>
-          <button
-            onClick={() => confirmarVenta("efectivo", true)}
-            className={`w-full py-2 rounded-md font-bold text-xs transition ${
-              theme === "dark"
-                ? "bg-sky-700 hover:bg-sky-800 text-white"
-                : "bg-gradient-to-r from-sky-500 to-blue-600 hover:brightness-110 text-white"
-            }`}
-          >
-            Confirmar e Imprimir
-          </button>
+
+       <button
+        onClick={async () => {
+          await confirmarVenta("efectivo", true);
+          navigate("/ModeloFactura"); // 🔹 redirige después de imprimir
+        }}
+        className={`w-full py-2 rounded-md font-bold text-xs transition ${
+          theme === "dark"
+            ? "bg-sky-700 hover:bg-sky-800"
+            : "bg-gradient-to-r from-sky-500 to-blue-600 hover:brightness-110 text-white"
+        }`}
+      >
+        Confirmar e Imprimir
+      </button>
+
         </div>
       </div>
 
       {/* Modal Nuevo Cliente */}
       {showNuevoCliente && (
-        <div className="absolute inset-0 z-[70] flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setShowNuevoCliente(false)}>
+        <div
+          className="absolute inset-0 z-[70] flex items-center justify-center bg-black/50"
+          onClick={() => setShowNuevoCliente(false)}
+        >
           <div
             className={`w-[450px] rounded-2xl shadow-2xl p-6 ${
               theme === "dark" ? "bg-slate-900 text-white" : "bg-white text-slate-800"
@@ -427,90 +434,64 @@ function Cobrar({ initialCliente = null, carrito = [], usuario, idCaja, onClose 
           >
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold">Nuevo Cliente</h3>
-              <button onClick={() => setShowNuevoCliente(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg">
+              <button
+                onClick={() => setShowNuevoCliente(false)}
+                className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
+              >
                 <X size={18} />
               </button>
             </div>
 
             <div className="space-y-3">
-              <div>
-                <label className="text-xs font-medium mb-1 block">Nombre *</label>
-                <input
-                  type="text"
-                  value={nuevoCliente.nombre}
-                  onChange={(e) => setNuevoCliente({...nuevoCliente, nombre: e.target.value})}
-                  className={`w-full px-3 py-2 rounded-lg border text-sm ${
-                    theme === "dark" ? "bg-slate-800 border-slate-700" : "bg-white border-slate-300"
-                  }`}
-                  placeholder="Nombre completo"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-medium mb-1 block">Identificación *</label>
-                <input
-                  type="text"
-                  value={nuevoCliente.identificacion}
-                  onChange={(e) => setNuevoCliente({...nuevoCliente, identificacion: e.target.value})}
-                  className={`w-full px-3 py-2 rounded-lg border text-sm ${
-                    theme === "dark" ? "bg-slate-800 border-slate-700" : "bg-white border-slate-300"
-                  }`}
-                  placeholder="Cédula o NIT"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-medium mb-1 block">Tipo</label>
-                <select
-                  value={nuevoCliente.tipo}
-                  onChange={(e) => setNuevoCliente({...nuevoCliente, tipo: e.target.value})}
-                  className={`w-full px-3 py-2 rounded-lg border text-sm ${
-                    theme === "dark" ? "bg-slate-800 border-slate-700" : "bg-white border-slate-300"
-                  }`}
-                >
-                  <option value="persona">Persona</option>
-                  <option value="empresa">Empresa</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="text-xs font-medium mb-1 block">Teléfono</label>
-                <input
-                  type="text"
-                  value={nuevoCliente.telefono}
-                  onChange={(e) => setNuevoCliente({...nuevoCliente, telefono: e.target.value})}
-                  className={`w-full px-3 py-2 rounded-lg border text-sm ${
-                    theme === "dark" ? "bg-slate-800 border-slate-700" : "bg-white border-slate-300"
-                  }`}
-                  placeholder="Teléfono"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-medium mb-1 block">Correo</label>
-                <input
-                  type="email"
-                  value={nuevoCliente.correo}
-                  onChange={(e) => setNuevoCliente({...nuevoCliente, correo: e.target.value})}
-                  className={`w-full px-3 py-2 rounded-lg border text-sm ${
-                    theme === "dark" ? "bg-slate-800 border-slate-700" : "bg-white border-slate-300"
-                  }`}
-                  placeholder="correo@ejemplo.com"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-medium mb-1 block">Dirección</label>
-                <textarea
-                  value={nuevoCliente.direccion}
-                  onChange={(e) => setNuevoCliente({...nuevoCliente, direccion: e.target.value})}
-                  className={`w-full px-3 py-2 rounded-lg border text-sm ${
-                    theme === "dark" ? "bg-slate-800 border-slate-700" : "bg-white border-slate-300"
-                  }`}
-                  placeholder="Dirección completa"
-                  rows={2}
-                />
-              </div>
+              <InputField
+                label="Nombre *"
+                value={nuevoCliente.nombre}
+                onChange={(v) => setNuevoCliente({ ...nuevoCliente, nombre: v })}
+              />
+              <InputField
+                label="Identificación *"
+                value={nuevoCliente.identificacion}
+                onChange={(v) =>
+                  setNuevoCliente({ ...nuevoCliente, identificacion: v })
+                }
+              />
+              <select
+                value={nuevoCliente.tipo}
+                onChange={(e) =>
+                  setNuevoCliente({ ...nuevoCliente, tipo: e.target.value })
+                }
+                className={`w-full px-3 py-2 rounded-lg border text-sm ${
+                  theme === "dark"
+                    ? "bg-slate-800 border-slate-700"
+                    : "bg-white border-slate-300"
+                }`}
+              >
+                <option value="persona">Persona</option>
+                <option value="empresa">Empresa</option>
+              </select>
+              <InputField
+                label="Teléfono"
+                value={nuevoCliente.telefono}
+                onChange={(v) => setNuevoCliente({ ...nuevoCliente, telefono: v })}
+              />
+              <InputField
+                label="Correo"
+                value={nuevoCliente.correo}
+                onChange={(v) => setNuevoCliente({ ...nuevoCliente, correo: v })}
+              />
+              <textarea
+                value={nuevoCliente.direccion}
+                onChange={(e) =>
+                  setNuevoCliente({ ...nuevoCliente, direccion: e.target.value })
+                }
+                className={`w-full px-3 py-2 rounded-lg border text-sm ${
+                  theme === "dark"
+                    ? "bg-slate-800 border-slate-700"
+                    : "bg-white border-slate-300"
+                }`}
+                placeholder="Dirección completa"
+                rows={2}
+              />
             </div>
 
             <div className="flex gap-2 mt-5">
@@ -557,14 +538,17 @@ function NumButton({ label, onClick, variant = "normal" }) {
   );
 }
 
-function QuickButton({ label, onClick }) {
+function InputField({ label, value, onChange }) {
   return (
-    <button
-      onClick={onClick}
-      className="py-2 rounded-lg text-xs font-bold bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:brightness-110 transition"
-    >
-      {label}
-    </button>
+    <div>
+      <label className="text-xs font-medium mb-1 block">{label}</label>
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full px-3 py-2 rounded-lg border text-sm border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
+      />
+    </div>
   );
 }
 
