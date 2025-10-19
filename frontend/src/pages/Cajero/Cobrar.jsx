@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { X, UserPlus } from "lucide-react";
-import { useNavigate } from "react-router-dom"; // ✅ Importar aquí
+import { useNavigate } from "react-router-dom"; 
 
 /* ======= Hook para sincronizar el modo de color global ======= */
 
