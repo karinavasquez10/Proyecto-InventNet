@@ -1,3 +1,4 @@
+// categorias.js (actualizado, asumiendo que se agregó la columna 'impuesto' DECIMAL(5,4) DEFAULT 0.0000 a la tabla categorias)
 import { Router } from "express";
 import pool from '../config/database.js';
 
@@ -6,7 +7,7 @@ const router = Router();
 // Obtener todas las categorías
 router.get('/', async (req, res) => {
   try {
-    const [rows] = await pool.query('SELECT * FROM categorias');
+    const [rows] = await pool.query('SELECT id_categoria, nombre, impuesto FROM categorias');
     res.json(rows);
   } catch (error) {
     console.error(error);
@@ -18,7 +19,7 @@ router.get('/', async (req, res) => {
 router.get('/id/:nombre', async (req, res) => {
   const { nombre } = req.params;
   try {
-    const [rows] = await pool.query('SELECT id_categoria FROM categorias WHERE nombre = ?', [nombre]);
+    const [rows] = await pool.query('SELECT id_categoria, impuesto FROM categorias WHERE nombre = ?', [nombre]);
     if (rows.length > 0) {
       res.json(rows[0]); // Devuelve el primer resultado
     } else {

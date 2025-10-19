@@ -79,10 +79,18 @@ function ConsultaFacturasBody({ onClose }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // Estados para filtros mejorados
+  const [busqueda, setBusqueda] = useState("");
   const [fecha, setFecha] = useState("");
   const [cajero, setCajero] = useState("TODOS");
   const [medio, setMedio] = useState("TODOS");
   const [estado, setEstado] = useState("TODOS");
+  // Estado de ordenamiento
+  const [ordenarPor, setOrdenarPor] = useState("reciente");
+  
+  // Paginación
+  const [pagina, setPagina] = useState(1);
+  const porPagina = 10;
 
   // Fetch facturas desde backend
   useEffect(() => {
@@ -92,10 +100,8 @@ function ConsultaFacturasBody({ onClose }) {
         const res = await fetch(`${API_URL}/ventas`);
         if (!res.ok) throw new Error(`Error ${res.status}: No se pudieron cargar facturas.`);
         const data = await res.json();
-        console.log("Facturas cargadas:", data);  // Debug
         setFacturas(data);
       } catch (err) {
-        console.error("Error fetching facturas:", err);
         setError(err.message);
       } finally {
         setLoading(false);
@@ -105,19 +111,97 @@ function ConsultaFacturasBody({ onClose }) {
   }, []);
 
   // Opciones únicas para filtros (de datos reales)
-  const cajeros = ["TODOS", ...Array.from(new Set(facturas.map((i) => i.nombre_usuario || ""))).filter(Boolean)];
-  const medios = ["TODOS", ...Array.from(new Set(facturas.map((i) => i.metodo_pago || ""))).filter(Boolean)];
-  const estados = ["TODOS", "SALDADA"];  // Asumir 'SALDADA' para todas; agregar campo si necesitas más
+  const cajeros = ["TODOS", ...Array.from(new Set(facturas.map(i => i.nombre_usuario || ""))).filter(Boolean)];
+  const medios = ["TODOS", ...Array.from(new Set(facturas.map(i => i.metodo_pago || ""))).filter(Boolean)];
+  const estados = ["TODOS", "SALDADA"]; // Asumir 'SALDADA' para todas
 
-  const filtered = facturas.filter(
-    (i) =>
-      (!fecha || i.fecha.startsWith(fecha)) &&
-      (cajero === "TODOS" || i.nombre_usuario === cajero) &&
-      (medio === "TODOS" || i.metodo_pago === medio) &&
-      (estado === "TODOS" || estado === "SALDADA")  // Asumir todas 'SALDADA'
-  );
+  // FILTRO MEJORADO: tipo global (como ConsultaProductos), y por filtros directos
+  const filtrarFacturas = (listado) => {
+    return listado.filter(i => {
+      // Filtro búsqueda global
+      const texto = busqueda.trim().toLowerCase();
+      const camposBuscados =
+        `${i.id_venta || ""} ${i.fecha || ""} ${i.nombre_usuario || ""} ${i.metodo_pago || ""} ${i.total || ""} ${i.observaciones || ""}`.toLowerCase();
 
-  const total = filtered.reduce((s, i) => s + (i.total || 0), 0);
+      // Filtro por fecha exacta (date input)
+      const pasaFecha = !fecha || (i.fecha && i.fecha.startsWith(fecha));
+
+      // Filtro por select de cajero
+      const pasaCajero = cajero === "TODOS" || i.nombre_usuario === cajero;
+
+      // Filtro por select de medio
+      const pasaMedio = medio === "TODOS" || i.metodo_pago === medio;
+
+      // Filtro por select de estado
+      const pasaEstado = estado === "TODOS" || estado === "SALDADA";
+
+      // Búsqueda global permite buscar por cualquier campo textual
+      const pasaBusqueda = !texto || camposBuscados.includes(texto);
+
+      return pasaFecha && pasaCajero && pasaMedio && pasaEstado && pasaBusqueda;
+    });
+  };
+
+  // ===== ORDENAMIENTO (como en ConsultaProductos) =====
+  // Opciones de ordenamiento
+  const opcionesOrden = [
+    { value: "reciente", label: "Más reciente" },
+    { value: "antiguo", label: "Más antiguo" },
+    { value: "mayor_total", label: "Mayor total" },
+    { value: "menor_total", label: "Menor total" },
+    { value: "alfabetico", label: "Cajero (A-Z)" },
+    { value: "alfabetico_inv", label: "Cajero (Z-A)" },
+  ];
+
+  // Función de ordenamiento
+  function ordenarFacturas(list) {
+    const arr = [...list];
+    switch (ordenarPor) {
+      case "reciente":
+        // por fecha descendente
+        arr.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+        break;
+      case "antiguo":
+        arr.sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
+        break;
+      case "mayor_total":
+        arr.sort((a, b) => (b.total || 0) - (a.total || 0));
+        break;
+      case "menor_total":
+        arr.sort((a, b) => (a.total || 0) - (b.total || 0));
+        break;
+      case "alfabetico":
+        arr.sort((a, b) =>
+          (a.nombre_usuario || "").localeCompare(b.nombre_usuario || "")
+        );
+        break;
+      case "alfabetico_inv":
+        arr.sort((a, b) =>
+          (b.nombre_usuario || "").localeCompare(a.nombre_usuario || "")
+        );
+        break;
+      default:
+        break;
+    }
+    return arr;
+  }
+
+  // Lista filtrada + ordenada según los filtros y opción seleccionada
+  const filtered = ordenarFacturas(filtrarFacturas(facturas));
+
+  // Paginación: calcular items visibles y total páginas
+  const totalPaginas = Math.ceil(filtered.length / porPagina) || 1;
+  const desde = (pagina - 1) * porPagina;
+  const hasta = desde + porPagina;
+  const filasActuales = filtered.slice(desde, hasta);
+
+  // Si hay cambio de filtro u orden, reset a página 1
+  useEffect(() => {
+    setPagina(1);
+  }, [busqueda, fecha, cajero, medio, estado, ordenarPor]);
+
+  // ===== Total General: sumatoria de todas las facturas, NO sólo las filtradas =====
+  const totalGeneral = facturas.reduce((s, i) => s + (Number(i.total) || 0), 0);
 
   const money = (n) =>
     (Number(n) || 0).toLocaleString("es-CO", {
@@ -188,7 +272,21 @@ function ConsultaFacturasBody({ onClose }) {
             Filtros de búsqueda
           </h3>
 
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-6 gap-4">
+            {/* Filtro de búsqueda global */}
+            <Field label="Buscar">
+              <input
+                type="text"
+                placeholder="Factura, cajero, observación..."
+                value={busqueda}
+                onChange={(e) => setBusqueda(e.target.value)}
+                className={`w-full rounded-lg border px-3 py-2 text-sm transition
+                  ${theme === "dark"
+                    ? "border-slate-700 bg-slate-800 text-slate-100 placeholder:text-slate-400 focus:ring-2 focus:ring-fuchsia-400"
+                    : "border-slate-300 bg-white text-slate-800 placeholder:text-slate-400 focus:ring-2 focus:ring-orange-300"}`}
+              />
+            </Field>
+
             <Field label="Fecha">
               <input
                 type="date"
@@ -204,6 +302,15 @@ function ConsultaFacturasBody({ onClose }) {
             <Select label="Cajero" options={cajeros} value={cajero} onChange={setCajero} theme={theme} />
             <Select label="Medio Pago" options={medios} value={medio} onChange={setMedio} theme={theme} />
             <Select label="Estado" options={estados} value={estado} onChange={setEstado} theme={theme} />
+
+            {/* Filtro de ordenamiento */}
+            <OrdenarPorSelect
+              label="Ordenar por"
+              value={ordenarPor}
+              onChange={setOrdenarPor}
+              options={opcionesOrden}
+              theme={theme}
+            />
           </div>
         </section>
 
@@ -240,8 +347,8 @@ function ConsultaFacturasBody({ onClose }) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-orange-100 dark:divide-slate-700">
-                {filtered.length ? (
-                  filtered.map((r) => {
+                {filasActuales.length ? (
+                  filasActuales.map((r) => {
                     const fechaObj = new Date(r.fecha);
                     const hora = fechaObj.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
                     return (
@@ -285,6 +392,13 @@ function ConsultaFacturasBody({ onClose }) {
               </tbody>
             </table>
           </div>
+
+          {/* Paginación */}
+          <Pagination
+            pagina={pagina}
+            setPagina={setPagina}
+            totalPaginas={totalPaginas}
+          />
         </section>
 
         {/* Totales */}
@@ -297,7 +411,7 @@ function ConsultaFacturasBody({ onClose }) {
         >
           <div className="flex justify-between items-center p-3 rounded-md shadow-md text-white bg-gradient-to-r from-orange-400 via-pink-400 to-fuchsia-500">
             <span className="text-sm font-semibold">Total general</span>
-            <span className="text-lg font-bold">{money(total)}</span>
+            <span className="text-lg font-bold">{money(totalGeneral)}</span>
           </div>
         </section>
 
@@ -348,6 +462,27 @@ function Select({ label, options, value, onChange, theme }) {
   );
 }
 
+// Nuevo: Componente OrdenarPorSelect para selector de orden (similar a ConsultaProductos)
+function OrdenarPorSelect({ label, value, onChange, options, theme }) {
+  return (
+    <div>
+      <Label>{label}</Label>
+      <select
+        className={`w-full rounded-lg border px-3 py-2 text-sm transition
+          ${theme === "dark"
+            ? "border-slate-700 bg-slate-800 text-slate-100 focus:ring-2 focus:ring-fuchsia-400"
+            : "border-slate-300 bg-white text-slate-800 focus:ring-2 focus:ring-orange-300"}`}
+        value={value}
+        onChange={e => onChange(e.target.value)}
+      >
+        {options.map(opt => (
+          <option value={opt.value} key={opt.value}>{opt.label}</option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
 function Th({ children, className = "" }) {
   return <th className={`text-left px-4 py-3 font-semibold ${className}`}>{children}</th>;
 }
@@ -389,6 +524,92 @@ function GradientBtn({ children, onClose }) {
     >
       {children}
     </button>
+  );
+}
+
+// Componente de paginación minimalista (como en ConsultaProductos)
+function Pagination({ pagina, setPagina, totalPaginas }) {
+  if (totalPaginas <= 1) return null;
+
+  // Evita mostrar demasiados botones si hay muchas páginas
+  let inicio = Math.max(1, pagina - 2);
+  let fin = Math.min(totalPaginas, pagina + 2);
+  if (pagina <= 2) {
+    fin = Math.min(5, totalPaginas);
+  } else if (pagina >= totalPaginas - 1) {
+    inicio = Math.max(1, totalPaginas - 4);
+  }
+
+  const botones = [];
+  for (let i = inicio; i <= fin; i++) {
+    botones.push(i);
+  }
+
+  return (
+    <div className="flex gap-2 justify-center mt-6 select-none">
+      <button
+        className={`px-3 py-1.5 rounded-lg text-sm font-medium ${
+          pagina === 1
+            ? "bg-slate-100 dark:bg-slate-700 text-slate-400 cursor-not-allowed"
+            : "bg-gradient-to-r from-orange-100 to-pink-100 dark:from-slate-900 dark:to-slate-800 text-orange-700 dark:text-fuchsia-300 hover:brightness-110"
+        }`}
+        disabled={pagina === 1}
+        onClick={() => setPagina(1)}
+        tabIndex={pagina === 1 ? -1 : 0}
+      >
+        ⏮
+      </button>
+      <button
+        className={`px-3 py-1.5 rounded-lg text-sm font-medium ${
+          pagina === 1
+            ? "bg-slate-100 dark:bg-slate-700 text-slate-400 cursor-not-allowed"
+            : "bg-gradient-to-r from-orange-100 to-pink-100 dark:from-slate-900 dark:to-slate-800 text-orange-700 dark:text-fuchsia-300 hover:brightness-110"
+        }`}
+        disabled={pagina === 1}
+        onClick={() => setPagina((p) => Math.max(1, p - 1))}
+        tabIndex={pagina === 1 ? -1 : 0}
+      >
+        ◀
+      </button>
+      {botones.map((num) => (
+        <button
+          key={num}
+          className={`px-3 py-1.5 rounded-lg text-sm font-semibold ${
+            num === pagina
+              ? "bg-gradient-to-r from-orange-400 to-fuchsia-500 text-white shadow"
+              : "bg-white dark:bg-slate-900 text-orange-700 dark:text-fuchsia-300 hover:bg-orange-50 dark:hover:bg-slate-700"
+          }`}
+          onClick={() => setPagina(num)}
+          aria-current={num === pagina ? "page" : undefined}
+        >
+          {num}
+        </button>
+      ))}
+      <button
+        className={`px-3 py-1.5 rounded-lg text-sm font-medium ${
+          pagina === totalPaginas
+            ? "bg-slate-100 dark:bg-slate-700 text-slate-400 cursor-not-allowed"
+            : "bg-gradient-to-r from-orange-100 to-pink-100 dark:from-slate-900 dark:to-slate-800 text-orange-700 dark:text-fuchsia-300 hover:brightness-110"
+        }`}
+        disabled={pagina === totalPaginas}
+        onClick={() => setPagina((p) => Math.min(totalPaginas, p + 1))}
+        tabIndex={pagina === totalPaginas ? -1 : 0}
+      >
+        ▶
+      </button>
+      <button
+        className={`px-3 py-1.5 rounded-lg text-sm font-medium ${
+          pagina === totalPaginas
+            ? "bg-slate-100 dark:bg-slate-700 text-slate-400 cursor-not-allowed"
+            : "bg-gradient-to-r from-orange-100 to-pink-100 dark:from-slate-900 dark:to-slate-800 text-orange-700 dark:text-fuchsia-300 hover:brightness-110"
+        }`}
+        disabled={pagina === totalPaginas}
+        onClick={() => setPagina(totalPaginas)}
+        tabIndex={pagina === totalPaginas ? -1 : 0}
+      >
+        ⏭
+      </button>
+    </div>
   );
 }
 

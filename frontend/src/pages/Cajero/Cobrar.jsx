@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
 import { X, UserPlus } from "lucide-react";
-import { useNavigate } from "react-router-dom"; 
 
 /* ======= Hook para sincronizar el modo de color global ======= */
 
@@ -25,10 +24,9 @@ function useSystemTheme() {
 }
 
 /* ======= Componente principal ======= */
-function Cobrar({ initialCliente = null, carrito = [], usuario, idCaja, onClose }) {
+function Cobrar({ initialCliente = null, carrito = [], usuario, idCaja, onClose, onSuccess }) {
   const theme = useSystemTheme();
 
-  const navigate = useNavigate();
   const [efectivo, setEfectivo] = useState("");
   const [cliente, setCliente] = useState(initialCliente);
   const [showNuevoCliente, setShowNuevoCliente] = useState(false);
@@ -53,49 +51,55 @@ function Cobrar({ initialCliente = null, carrito = [], usuario, idCaja, onClose 
         cantidad: it.cantidad ?? it.quantity ?? 1,
         precio_unitario: it.precio_unitario ?? it.price ?? 0,
         descuento: it.descuento ?? 0,
+        tax_rate: it.tax_rate ?? 0,
       }))
     );
   }, [carrito]);
-
-  const [impuestoRate, setImpuestoRate] = useState(0.19);
-
-  useEffect(() => {
-    fetch("http://localhost:5000/api/impuesto")
-      .then((r) => r.json())
-      .then((d) => {
-        if (d && d.impuesto) setImpuestoRate(parseFloat(d.impuesto));
-      })
-      .catch((err) => console.warn("Error cargando tasa de impuesto:", err));
-  }, []);
 
   const handleNumberClick = (num) => setEfectivo(efectivo + num);
   const handleClear = () => setEfectivo("");
   const handleBackspace = () => setEfectivo(efectivo.slice(0, -1));
 
-  // Cálculos
+  // Cálculos actualizados con impuesto por ítem
   function calcularSubtotalBruto() {
     return items.reduce(
-      (s, it) => s + it.precio_unitario * it.cantidad - (it.descuento || 0),
+      (s, it) => s + (it.precio_unitario * it.cantidad) - (it.descuento || 0),
       0
     );
   }
 
+  function calcularImpuesto() {
+    if (descuentoGlobal === 0) {
+      return items.reduce(
+        (s, it) => s + ((it.precio_unitario * it.cantidad) - (it.descuento || 0)) * it.tax_rate,
+        0
+      );
+    }
+
+    // Con descuento global: prorratear descuento por ítem
+    const subtotalBruto = calcularSubtotalBruto();
+    return items.reduce((s, it) => {
+      const base_item = (it.precio_unitario * it.cantidad) - (it.descuento || 0);
+      const prorated_desc = (base_item / subtotalBruto) * descuentoGlobal;
+      const discounted_item = base_item - prorated_desc;
+      return s + discounted_item * it.tax_rate;
+    }, 0);
+  }
+
+  function calcularTotal() {
+    const subtotalBruto = calcularSubtotalBruto();
+    const subtotalNeto = subtotalBruto - descuentoGlobal;
+    const impuesto = calcularImpuesto();
+    return subtotalNeto + impuesto;
+  }
+
   const subtotalBruto = calcularSubtotalBruto();
   const subtotalNeto = subtotalBruto - descuentoGlobal;
+  const impuesto = calcularImpuesto();
+  const total = calcularTotal();
 
-  function calcularImpuesto(subtotal) {
-    return subtotal * impuestoRate;
-  }
-
-  function calcularTotal(subtotal, impuesto) {
-    return subtotal + impuesto;
-  }
-
-  const impuesto = calcularImpuesto(subtotalNeto);
-  const total = calcularTotal(subtotalNeto, impuesto);
-
-  const efectivoInt = parseInt(efectivo || 0);
-  const cambio = efectivoInt - total;
+  const efectivoFloat = parseFloat(efectivo || "0") || 0;
+  const cambio = efectivoFloat - total;
 
   const money = (n) =>
     (Number(n) || 0).toLocaleString("es-CO", {
@@ -103,6 +107,18 @@ function Cobrar({ initialCliente = null, carrito = [], usuario, idCaja, onClose 
       currency: "COP",
       maximumFractionDigits: 0,
     });
+
+  const validatePayment = () => {
+    if (items.length === 0) {
+      alert("No hay productos para procesar el pago.");
+      return false;
+    }
+    if (efectivoFloat < total) {
+      alert("El efectivo recibido debe ser igual o mayor al total de la venta.");
+      return false;
+    }
+    return true;
+  };
 
   async function crearCliente() {
     if (!nuevoCliente.nombre || !nuevoCliente.identificacion) {
@@ -139,66 +155,178 @@ function Cobrar({ initialCliente = null, carrito = [], usuario, idCaja, onClose 
     setDescuentoGlobal(descuento);
   }
 
-  async function confirmarVenta(metodo_pago = "efectivo", imprimir = false) {
-    if (!idCaja) {
-      alert("No hay caja abierta. Abra una caja antes de facturar.");
-      return;
-    }
+  // Solo se debe restar la cantidad insertada al stock.
+  const updateStock = async () => {
+    if (items.length === 0) return;
 
-    const subtotalFinal = subtotalNeto;
-    const impuestoFinal = calcularImpuesto(subtotalFinal);
-    const totalFinal = calcularTotal(subtotalFinal, impuestoFinal);
-
-    const payload = {
-      id_cliente: cliente ? cliente.id_cliente || cliente.id : null,
-      id_usuario: usuario.id_usuario || usuario.id,
-      id_caja: idCaja,
-      subtotal: subtotalFinal,
-      impuesto: impuestoFinal,
-      total: totalFinal,
-      metodo_pago,
-      observaciones: `Descuento global: ${descuentoGlobal.toLocaleString("es-CO", {
-        style: "currency",
-        currency: "COP",
-        maximumFractionDigits: 0,
-      })}`,
-      items: items.map((it) => ({
-        id_producto: it.id_producto,
-        cantidad: it.cantidad,
-        precio_unitario: it.precio_unitario,
-        descuento: it.descuento || 0,
-        total: it.precio_unitario * it.cantidad - (it.descuento || 0),
-      })),
-    };
+    // Solo enviar una vez los items y las cantidades realizadas
+    const stockUpdates = items.map((it) => ({
+      id_producto: it.id_producto,
+      cantidad_a_restar: it.cantidad, // Usamos "cantidad_a_restar" explícitamente para evitar problemas de duplicidad o backend confuso
+    }));
 
     try {
-      const res = await fetch("http://localhost:5000/api/ventas", {
+      const res = await fetch("http://localhost:5000/api/products/update-stocks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        // Cambiamos para enviar el campo claro y evitar problemas de doble resta
+        body: JSON.stringify(stockUpdates),
       });
 
       if (!res.ok) {
-        const errorText = await res.text();
-        throw new Error(
-          errorText || `Error ${res.status}: No se pudo guardar la venta.`
-        );
+        const error = await res.text();
+        console.error("Error updating stock:", error);
+      } else {
+        console.log("Stock actualizado exitosamente");
       }
-
-      const data = await res.json();
-      console.log("Venta y movimiento creados:", data);  // Debug: Confirma movimiento
-      alert(`✅ Venta registrada exitosamente. ID: ${data.id_venta}`);
-
-      if (imprimir) {
-        setTimeout(() => window.print?.(), 300);
-      }
-
-      onClose();
     } catch (err) {
-      console.error("Error en confirmarVenta:", err);
-      alert(`❌ ${err.message}`);
+      console.error("Error updating stock:", err);
     }
+  };
+
+const updateCaja = async (totalVenta, cambioReal) => {
+  if (!idCaja) {
+    throw new Error("No hay caja abierta");
   }
+
+  try {
+    console.log("📤 Enviando a caja:", {
+      id_caja: idCaja,
+      total_venta: totalVenta,
+      cambio: cambioReal,
+      metodo_pago: "efectivo"
+    });
+
+    const res = await fetch(`http://localhost:5000/api/cajas/${idCaja}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        total_venta: totalVenta,
+        cambio: cambioReal, // Cambio REAL calculado
+        metodo_pago: "efectivo"
+      }),
+    });
+
+    if (!res.ok) {
+      const error = await res.text();
+      console.error("❌ Error actualizando caja:", error);
+      throw new Error(`Error actualizando caja: ${error}`);
+    }
+
+    const data = await res.json();
+    console.log("✅ Caja actualizada:", {
+      monto_final: data.monto_final,
+      total_ventas: data.total_ventas
+    });
+    
+    return data;
+  } catch (err) {
+    console.error("❌ Error en updateCaja:", err);
+    throw err;
+  }
+};
+
+async function confirmarVenta(metodo_pago = "efectivo", imprimir = false) {
+  if (!validatePayment()) return;
+
+  if (!idCaja) {
+    alert("No hay caja abierta. Abra una caja antes de facturar.");
+    return;
+  }
+
+  // Cálculos finales
+  const subtotalFinal = subtotalBruto;
+  const descuentoFinal = descuentoGlobal;
+  const subtotalNetoFinal = subtotalNeto;
+  const impuestoFinal = impuesto;
+  const totalFinal = total;
+
+  // ====== CORRECCIÓN: Calcular cambio REAL ======
+  const efectivoDado = parseFloat(efectivo || "0") || 0;
+  const cambioReal = Math.max(0, efectivoDado - totalFinal);
+  
+  console.log("💰 Detalles de pago:", {
+    total_venta: totalFinal,
+    efectivo_recibido: efectivoDado,
+    cambio_devuelto: cambioReal
+  });
+
+  // Calcular total por ítem con prorrateo
+  const itemsWithTotals = items.map((it) => {
+    const base_item = (it.precio_unitario * it.cantidad) - (it.descuento || 0);
+    let subtotal_item = base_item;
+    let tax_item = base_item * it.tax_rate;
+    if (descuentoGlobal > 0) {
+      const prorated_desc = (base_item / subtotalBruto) * descuentoGlobal;
+      subtotal_item = base_item - prorated_desc;
+      tax_item = subtotal_item * it.tax_rate;
+    }
+    const total_item = subtotal_item + tax_item;
+    return {
+      id_producto: it.id_producto,
+      cantidad: it.cantidad,
+      precio_unitario: it.precio_unitario,
+      descuento: it.descuento || 0,
+      subtotal: subtotal_item,
+      impuesto: tax_item,
+      total: total_item,
+    };
+  });
+
+  const payload = {
+    id_cliente: cliente ? cliente.id_cliente || cliente.id : null,
+    id_usuario: usuario.id_usuario || usuario.id,
+    id_caja: idCaja,
+    subtotal: subtotalFinal,
+    descuento: descuentoFinal,
+    subtotal_neto: subtotalNetoFinal,
+    impuesto: impuestoFinal,
+    total: totalFinal,
+    metodo_pago,
+    observaciones: `Descuento global: ${money(descuentoGlobal)}. Efectivo: ${money(efectivoDado)}. Cambio: ${money(cambioReal)}`,
+    items: itemsWithTotals,
+  };
+
+  try {
+    // 1. Registrar venta
+    const res = await fetch("http://localhost:5000/api/ventas", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    if (!res.ok) {
+      const errorText = await res.text();
+      throw new Error(errorText || `Error ${res.status}: No se pudo guardar la venta.`);
+    }
+
+    const data = await res.json();
+    console.log("✅ Venta registrada:", data);
+
+    // 2. Actualizar stock
+    await updateStock();
+
+    // 3. Actualizar caja con cambio REAL
+    await updateCaja(totalFinal, cambioReal);
+
+    alert(`✅ Venta registrada exitosamente. ID: ${data.id_venta}\n💵 Cambio devuelto: ${money(cambioReal)}`);
+
+    // 4. Limpiar carrito
+    if (onSuccess) {
+      onSuccess();
+    }
+
+    // 5. Imprimir si se solicitó
+    if (imprimir) {
+      setTimeout(() => window.print?.(), 300);
+    }
+
+    onClose();
+  } catch (err) {
+    console.error("❌ Error en confirmarVenta:", err);
+    alert(`❌ ${err.message}`);
+  }
+}
 
   return (
     <div
@@ -206,7 +334,7 @@ function Cobrar({ initialCliente = null, carrito = [], usuario, idCaja, onClose 
       onClick={onClose}
     >
       <div
-        className={`relative w-[95vw] max-w-4xl rounded-2xl shadow-2xl overflow-hidden flex flex-col md:flex-row border transition-all duration-300 py-6 sm:py-8
+        className={`relative w-[95vw] max-w-4xl rounded-xl shadow-2xl overflow-hidden flex flex-col md:flex-row border transition-all duration-300 py-6 sm:py-8
           ${
             theme === "dark"
               ? "bg-slate-900 border-slate-800"
@@ -220,7 +348,7 @@ function Cobrar({ initialCliente = null, carrito = [], usuario, idCaja, onClose 
             ${
               theme === "dark"
                 ? "bg-slate-900 text-slate-100"
-                : "bg-gradient-to-br from-orange-50 via-white to-rose-50 text-slate-800"
+                : "bg-gradient-to-r from-orange-50 via-white to-rose-50 text-slate-800"
             }
           `}
         >
@@ -247,6 +375,7 @@ function Cobrar({ initialCliente = null, carrito = [], usuario, idCaja, onClose 
               <InfoRow label="Sub Total" value={money(subtotalBruto)} />
               <InfoRow label="Descuento Global" value={money(descuentoGlobal)} />
               <InfoRow label="Subtotal Neto" value={money(subtotalNeto)} />
+              <InfoRow label="Impuesto" value={money(impuesto)} />
               <div className="flex justify-between items-center pt-2 border-t border-slate-200 dark:border-slate-700">
                 <span className="font-semibold">Cliente:</span>
                 {cliente ? (
@@ -256,8 +385,8 @@ function Cobrar({ initialCliente = null, carrito = [], usuario, idCaja, onClose 
                   </div>
                 ) : (
                   <button
-                    onClick={() => setShowNuevoCliente(true)}
                     className="px-3 py-1.5 rounded-md bg-gradient-to-r from-orange-500 to-fuchsia-500 text-white text-xs hover:brightness-110 flex items-center gap-1"
+                    onClick={() => setShowNuevoCliente(true)}
                   >
                     <UserPlus size={14} />
                     Nuevo Cliente
@@ -267,27 +396,38 @@ function Cobrar({ initialCliente = null, carrito = [], usuario, idCaja, onClose 
             </div>
 
             <div className="mt-4 space-y-2 max-h-[200px] overflow-y-auto">
-              {items.map((item, idx) => (
-                <div
-                  key={idx}
-                  className={`p-2 rounded-lg text-xs ${
-                    theme === "dark"
-                      ? "bg-slate-800"
-                      : "bg-white border border-slate-200"
-                  }`}
-                >
-                  <div className="flex justify-between">
-                    <span className="font-medium">{item.nombre}</span>
-                    <span>
-                      {money(item.precio_unitario * item.cantidad - item.descuento)}
-                    </span>
+              {items.map((item, idx) => {
+                const base_item = (item.precio_unitario * item.cantidad) - (item.descuento || 0);
+                let subtotal_item = base_item;
+                let tax_item = base_item * item.tax_rate;
+                let total_item = base_item + tax_item;
+                if (descuentoGlobal > 0) {
+                  const prorated_desc = (base_item / subtotalBruto) * descuentoGlobal;
+                  subtotal_item = base_item - prorated_desc;
+                  tax_item = subtotal_item * item.tax_rate;
+                  total_item = subtotal_item + tax_item;
+                }
+                return (
+                  <div
+                    key={idx}
+                    className={`p-2 rounded-lg text-xs ${
+                      theme === "dark"
+                        ? "bg-slate-800"
+                        : "bg-white border border-slate-200"
+                    }`}
+                  >
+                    <div className="flex justify-between">
+                      <span className="font-medium">{item.nombre}</span>
+                      <span>{money(total_item)}</span>
+                    </div>
+                    <div className="text-slate-500 dark:text-slate-400">
+                      {item.cantidad} x {money(item.precio_unitario)}
+                      {item.descuento > 0 && ` - Desc: ${money(item.descuento)}`}
+                      {item.tax_rate > 0 && ` + IVA: ${money(tax_item)}`}
+                    </div>
                   </div>
-                  <div className="text-slate-500 dark:text-slate-400">
-                    {item.cantidad} x {money(item.precio_unitario)}
-                    {item.descuento > 0 && ` - Desc: ${money(item.descuento)}`}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 
@@ -309,6 +449,7 @@ function Cobrar({ initialCliente = null, carrito = [], usuario, idCaja, onClose 
           {/* Campo de efectivo */}
           <input
             type="number"
+            step="0.01"
             placeholder="Digite el efectivo recibido"
             value={efectivo}
             onChange={(e) => setEfectivo(e.target.value)}
@@ -329,7 +470,7 @@ function Cobrar({ initialCliente = null, carrito = [], usuario, idCaja, onClose 
                   : "bg-gradient-to-r from-emerald-500 to-green-400 text-white"
               }`}
             >
-              EFECTIVO: {money(efectivoInt)}
+              EFECTIVO: {money(efectivoFloat)}
             </div>
             <div
               className={`py-2 rounded-lg ${
@@ -340,14 +481,14 @@ function Cobrar({ initialCliente = null, carrito = [], usuario, idCaja, onClose 
                   : "bg-green-500 text-white"
               }`}
             >
-              CAMBIO: {money(cambio > 0 ? cambio : 0)}
+              CAMBIO: {money(Math.max(0, cambio))}
             </div>
           </div>
 
           {/* Teclado numérico */}
           <div className="grid grid-cols-3 gap-2 mb-3">
             {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (
-              <NumButton key={n} label={n} onClick={() => handleNumberClick(n.toString())} />
+              <NumButton key={n} label={n.toString()} onClick={() => handleNumberClick(n.toString())} />
             ))}
             <NumButton label="⬅" onClick={handleBackspace} />
             <NumButton label="0" onClick={() => handleNumberClick("0")} />
@@ -403,20 +544,16 @@ function Cobrar({ initialCliente = null, carrito = [], usuario, idCaja, onClose 
             </button>
           </div>
 
-       <button
-        onClick={async () => {
-          await confirmarVenta("efectivo", true);
-          navigate("/ModeloFactura"); // 🔹 redirige después de imprimir
-        }}
-        className={`w-full py-2 rounded-md font-bold text-xs transition ${
-          theme === "dark"
-            ? "bg-sky-700 hover:bg-sky-800"
-            : "bg-gradient-to-r from-sky-500 to-blue-600 hover:brightness-110 text-white"
-        }`}
-      >
-        Confirmar e Imprimir
-      </button>
-
+          <button
+            onClick={() => confirmarVenta("efectivo", true)}
+            className={`w-full py-2 rounded-md font-bold text-xs transition ${
+              theme === "dark"
+                ? "bg-sky-700 hover:bg-sky-800"
+                : "bg-gradient-to-r from-sky-500 to-blue-600 hover:brightness-110 text-white"
+            }`}
+          >
+            Confirmar e Imprimir
+          </button>
         </div>
       </div>
 
@@ -497,7 +634,7 @@ function Cobrar({ initialCliente = null, carrito = [], usuario, idCaja, onClose 
             <div className="flex gap-2 mt-5">
               <button
                 onClick={() => setShowNuevoCliente(false)}
-                className="flex-1 py-2 rounded-lg bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-300 transition text-sm font-medium"
+                className="flex-1 py-2 rounded-lg bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 transition text-sm font-medium"
               >
                 Cancelar
               </button>

@@ -50,23 +50,41 @@ const Catalogo = ({ onClose }) => {
         const categoriesData = await categoryResponse.json();
         const productsData = await productResponse.json();
 
-        setCategories(
-          categoriesData.map((cat) => ({
-            id: cat.id_categoria,
-            nombre: cat.nombre,
-          }))
-        );
+        // Si no hay categoría activa, seleccionamos la primera automáticamente
+        if (categoriesData && categoriesData.length > 0) {
+          setCategories(
+            categoriesData.map((cat) => ({
+              id: cat.id_categoria,
+              nombre: cat.nombre,
+            }))
+          );
+        } else {
+          setCategories([]);
+        }
 
+        // Aquí, cambiamos para guardar la categoría como el nombre de la categoría, en vez de solo el id_categoria
         setProducts(
-          productsData.map((p) => ({
+          (productsData || []).map((p) => ({
             id: p.id_producto,
             nombre: p.nombre,
             precio: p.precio_venta,
-            categoria: p.id_categoria,
+            categoriaNombre: p.nombre_categoria, // Usar nombre_categoria en vez de id_categoria
             stock: p.stock_actual,
             image: "🛍️",
           }))
         );
+
+        if (
+          categoriesData &&
+          categoriesData.length > 0 &&
+          !activeCategory // solo establecer si no hay selección aún
+        ) {
+          // Seleccionar automáticamente la primera categoría al cargar datos
+          setActiveCategory({
+            id: categoriesData[0].id_categoria,
+            nombre: categoriesData[0].nombre,
+          });
+        }
       } catch (err) {
         setError(err.message);
       } finally {
@@ -74,12 +92,32 @@ const Catalogo = ({ onClose }) => {
       }
     };
     fetchData();
+    // Nota: NO incluir activeCategory en dependencia, sería lupo infinito. Solo cargar una vez.
+    // eslint-disable-next-line
   }, []);
 
-  // Filtrar productos
-  const filteredProducts = activeCategory
-    ? products.filter((p) => p.categoria === activeCategory.id)
-    : [];
+  // Esta lógica hace que si el usuario borra las categorías y luego se recargan, la active se mantenga válida
+  useEffect(() => {
+    if (
+      categories.length > 0 &&
+      (!activeCategory ||
+        !categories.some((cat) => cat.id === activeCategory.id))
+    ) {
+      // Si la categoría activa ya no existe, selecciona la primera
+      setActiveCategory(categories[0]);
+    }
+  }, [categories]);
+
+  // Filtrar productos SOLO si hay categoría activa y productos cargados
+  // Cambiar a filtrar por nombre de categoría
+  const filteredProducts =
+    products && activeCategory
+      ? products.filter(
+          (p) =>
+            typeof p.categoriaNombre !== "undefined" &&
+            String(p.categoriaNombre) === String(activeCategory.nombre)
+        )
+      : [];
 
   /* =================== UI =================== */
   return (
@@ -91,18 +129,22 @@ const Catalogo = ({ onClose }) => {
 
       <div
         className={`relative w-[95vw] max-w-6xl h-[88vh] rounded-2xl shadow-2xl overflow-hidden flex border transition-colors duration-300
-          ${theme === "dark"
-            ? "bg-slate-900 border-slate-800 text-slate-100"
-            : "bg-white border-slate-200 text-slate-800"}
+          ${
+            theme === "dark"
+              ? "bg-slate-900 border-slate-800 text-slate-100"
+              : "bg-white border-slate-200 text-slate-800"
+          }
         `}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Panel lateral de categorías */}
         <aside
           className={`w-1/5 p-4 overflow-y-auto transition-colors duration-300 border-r
-            ${theme === "dark"
-              ? "bg-slate-950 border-slate-800"
-              : "bg-orange-50 border-slate-200"}
+            ${
+              theme === "dark"
+                ? "bg-slate-950 border-slate-800"
+                : "bg-orange-50 border-slate-200"
+            }
           `}
         >
           <h2
@@ -189,7 +231,7 @@ const Catalogo = ({ onClose }) => {
                     : "bg-gradient-to-r from-orange-400 to-fuchsia-400 text-white"
                 }`}
               >
-                ${prod.precio.toLocaleString()}
+                ${prod.precio?.toLocaleString?.() ?? prod.precio}
               </span>
             </div>
           ))}

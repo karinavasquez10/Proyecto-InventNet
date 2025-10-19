@@ -13,7 +13,8 @@ import {
   Sun,
   LogOut,
   X,
-  Search
+  Search,
+  Edit2
 } from "lucide-react";
 import Cobrar from "./Cobrar";
 import Catalogo from "./Catalogo";
@@ -30,6 +31,8 @@ const cloudName = (
   import.meta.env.CLOUDINARY_CLOUD_NAME ||
   ""
 );
+
+const weighedCategories = ["Frutas", "Verduras", "Carnes"];
 
 function useProfilePhoto(userId) {
   const [photo, setPhoto] = useState("");
@@ -79,6 +82,58 @@ function useProfilePhoto(userId) {
   return [photo, refreshPhoto];
 }
 
+function QuantityModal({ product, currentQty, onSave, onClose, theme }) {
+  const [qty, setQty] = useState(currentQty || "");
+
+  useEffect(() => {
+    setQty(currentQty || "");
+  }, [currentQty]);
+
+  const handleSave = () => {
+    const numQty = parseFloat(qty);
+    if (numQty > 0) {
+      onSave(numQty.toString());
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50" onClick={onClose}>
+      <div
+        className={`w-[400px] rounded-2xl shadow-2xl overflow-hidden ${theme === "dark" ? "bg-slate-900 text-white" : "bg-white text-slate-800"}`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="p-4 border-b border-slate-200 dark:border-slate-700">
+          <h3 className="text-lg font-bold mb-3">{product.name}</h3>
+          <p className="text-sm mb-2">Precio unitario: ${product.price.toLocaleString()} por {product.unit_abrev}</p>
+          <input
+            type="number"
+            step="0.01"
+            min="0.01"
+            value={qty}
+            onChange={(e) => setQty(e.target.value)}
+            placeholder={`Ingresa cantidad en ${product.unit_abrev}`}
+            className={`w-full px-3 py-2 rounded-lg border ${theme === "dark" ? "bg-slate-800 border-slate-700 text-white" : "bg-white border-slate-300 text-slate-800"}`}
+          />
+        </div>
+        <div className="p-4 border-t border-slate-200 dark:border-slate-700 flex gap-2 justify-end">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 rounded-lg bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 transition"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={handleSave}
+            className="px-4 py-2 rounded-lg bg-gradient-to-r from-orange-500 to-fuchsia-500 text-white hover:brightness-110 transition"
+          >
+            Guardar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Home() {
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([{ id: null, nombre: "Todas" }]);
@@ -96,6 +151,9 @@ function Home() {
   const [clienteSeleccionado, setClienteSeleccionado] = useState(null);
   const [showSelectorCliente, setShowSelectorCliente] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
+  const [showQuantityModal, setShowQuantityModal] = useState(false);
+  const [modalProduct, setModalProduct] = useState(null);
+  const [editItemId, setEditItemId] = useState(null);
 
   // Datos del usuario autenticado
   const storedUser = (() => {
@@ -149,10 +207,14 @@ function Home() {
         const formattedProducts = productsData.map((p) => ({
           id: p.id_producto,
           name: p.nombre,
-          price: p.precio_venta,
+          price: parseFloat(p.precio_venta),
           category: p.nombre_categoria,
-          stock: p.stock_actual,
+          stock: parseFloat(p.stock_actual),
           image: "🛒",
+          unit: p.unidad || "Unidad",
+          unit_abrev: p.unidad_abrev || "ud",
+          tax_rate: parseFloat(p.impuesto) || 0,
+          descripcion: p.descripcion,
         }));
 
         const formattedCategories = categoriesData.map((cat) => ({
@@ -170,27 +232,76 @@ function Home() {
   }, []);
 
   // Filtrar productos
-const filteredProducts = products.filter((p) => 
-  (selectedCategory === "Todas" || p.category === selectedCategory) &&
-  p.stock > 0 &&
-  (!searchQuery || p.name.toLowerCase().includes(searchQuery.toLowerCase()))
-);
+  const filteredProducts = products.filter((p) => 
+    (selectedCategory === "Todas" || p.category === selectedCategory) &&
+    p.stock > 0 &&
+    (!searchQuery || p.name.toLowerCase().includes(searchQuery.toLowerCase()))
+  );
 
   const searchResults = products.filter((p) => 
     p.stock > 0 && p.name.toLowerCase().includes(searchQuery.toLowerCase())
   ).slice(0, 5);
 
   // Funciones carrito
-  const addToCart = (p) => {
-    setCart((prev) => {
-      const existing = prev.find((i) => i.id === p.id);
-      if (existing)
-        return prev.map((i) =>
-          i.id === p.id ? { ...i, quantity: i.quantity + 1 } : i
-        );
-      return [...prev, { ...p, quantity: 1 }];
-    });
+  const openQuantityModal = (product, editId = null) => {
+    setModalProduct(product);
+    setEditItemId(editId);
+    setShowQuantityModal(true);
   };
+
+  const handleSaveQuantity = (qty) => {
+    const product = modalProduct;
+    const newQuantity = parseFloat(qty);
+    if (newQuantity <= 0) return;
+
+    const updatedItem = {
+      ...product,
+      quantity: newQuantity,
+      is_weighed: true,
+    };
+
+    if (editItemId) {
+      setCart((prev) =>
+        prev.map((i) => (i.id === editItemId ? updatedItem : i))
+      );
+    } else {
+      setCart((prev) => {
+        const existingIndex = prev.findIndex((i) => i.id === product.id);
+        if (existingIndex >= 0) {
+          // Actualizar cantidad para productos ya en carrito
+          const updated = [...prev];
+          updated[existingIndex] = {
+            ...updated[existingIndex],
+            quantity: updated[existingIndex].quantity + newQuantity,
+          };
+          return updated;
+        } else {
+          return [...prev, updatedItem];
+        }
+      });
+    }
+
+    setShowQuantityModal(false);
+    setModalProduct(null);
+    setEditItemId(null);
+  };
+
+  const addToCart = (p) => {
+    if (weighedCategories.includes(p.category)) {
+      openQuantityModal(p);
+    } else {
+      setCart((prev) => {
+        const existing = prev.find((i) => i.id === p.id);
+        if (existing) {
+          return prev.map((i) =>
+            i.id === p.id ? { ...i, quantity: i.quantity + 1 } : i
+          );
+        }
+        return [...prev, { ...p, quantity: 1, is_weighed: false }];
+      });
+    }
+  };
+
   const updateQuantity = (id, change) => {
     setCart((prev) =>
       prev
@@ -200,9 +311,29 @@ const filteredProducts = products.filter((p) =>
         .filter((i) => i.quantity > 0)
     );
   };
+
+  const openEditModal = (item) => {
+    openQuantityModal(item, item.id);
+  };
+
   const removeFromCart = (id) => setCart((p) => p.filter((i) => i.id !== id));
 
-  const total = cart.reduce((sum, i) => sum + i.price * i.quantity, 0);
+  const lineTotal = (item) => {
+    const subtotal = item.price * item.quantity;
+    const tax = subtotal * item.tax_rate;
+    return subtotal + tax;
+  };
+
+  const total = cart.reduce((sum, i) => sum + lineTotal(i), 0);
+
+  const handleSearchSelect = (product) => {
+    setSearchQuery("");
+    addToCart(product);
+  };
+
+  const handleCobrarSuccess = () => {
+    setCart([]);
+  };
 
   return (
     <div
@@ -361,7 +492,9 @@ const filteredProducts = products.filter((p) =>
             <ShoppingCart size={20} />
             <h2 className="text-md font-semibold">Factura</h2>
           </div>
-          <input
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" size={16} />
+            <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -372,30 +505,28 @@ const filteredProducts = products.filter((p) =>
                   : "bg-white border-slate-300 text-slate-800 placeholder-slate-500"
               }`}
             />
+          </div>
         </div>
 
-              {/* ← MEJORA: Dropdown de resultados sugeridos */}
+        {/* Dropdown de resultados sugeridos */}
         {searchQuery && searchResults.length > 0 && (
           <div className="max-h-96 overflow-y-auto border-t p-2 space-y-2">
             {searchResults.map((product) => (
               <button
                 key={product.id}
-                onClick={() => {
-                  setSearchQuery("");  // Limpia búsqueda al seleccionar
-                  addToCart(product);  // ← MEJORA: Agrega directamente al carrito
-                }}
+                onClick={() => handleSearchSelect(product)}
                 className={`w-full p-3 rounded-lg text-left transition hover:bg-orange-50 dark:hover:bg-slate-700 ${
                   theme === "dark" ? "text-slate-300" : "text-slate-700"
                 }`}
               >
                 <div className="font-semibold">{product.name}</div>
-                <div className="text-xs text-slate-500 dark:text-slate-400">{product.price.toLocaleString("es-CO", { style: "currency", currency: "COP" })}</div>
+                <div className="text-xs text-slate-500 dark:text-slate-400">${product.price.toLocaleString()}</div>
               </button>
             ))}
           </div>
         )}
 
-      {searchQuery && searchResults.length === 0 && (
+        {searchQuery && searchResults.length === 0 && (
           <div className="p-4 text-center text-slate-500 dark:text-slate-400">
             No se encontraron resultados.
           </div>
@@ -417,44 +548,61 @@ const filteredProducts = products.filter((p) =>
             </div>
           ) : (
             <div className="space-y-3">
-              {cart.map((item) => (
-                <div
-                  key={item.id}
-                  className={`rounded-xl p-3 border ${
-                    theme === "dark"
-                      ? "bg-slate-800 border-slate-700"
-                      : "bg-white border-orange-100"
-                  }`}
-                >
-                  <div className="flex justify-between items-start mb-2">
-                    <h3 className="text-sm font-medium">{item.name}</h3>
-                    <button
-                      onClick={() => removeFromCart(item.id)}
-                      className="text-rose-500 hover:text-rose-600"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <div className="flex items-center gap-2">
+              {cart.map((item) => {
+                const lineTotalAmount = lineTotal(item);
+                return (
+                  <div
+                    key={item.id}
+                    className={`rounded-xl p-3 border ${
+                      theme === "dark"
+                        ? "bg-slate-800 border-slate-700"
+                        : "bg-white border-orange-100"
+                    }`}
+                  >
+                    <div className="flex justify-between items-start mb-2">
+                      <h3 className="text-sm font-medium">{item.name}</h3>
                       <button
-                        onClick={() => updateQuantity(item.id, -1)}
-                        className="w-7 h-7 bg-rose-500 hover:bg-rose-600 text-white rounded-full flex items-center justify-center"
+                        onClick={() => removeFromCart(item.id)}
+                        className="text-rose-500 hover:text-rose-600"
                       >
-                        <Minus size={12} />
-                      </button>
-                      <span className="text-sm">{item.quantity}</span>
-                      <button
-                        onClick={() => updateQuantity(item.id, 1)}
-                        className="w-7 h-7 bg-emerald-500 hover:bg-emerald-600 text-white rounded-full flex items-center justify-center"
-                      >
-                        <Plus size={12} />
+                        <Trash2 size={16} />
                       </button>
                     </div>
-                    <div className="text-right text-sm">
-                      <div className="text-slate-400">
-                        ${item.price.toLocaleString()}
+                    <div className="flex justify-between items-center mb-2">
+                      <div className="flex items-center gap-2">
+                        {item.is_weighed ? (
+                          <>
+                            <span className="text-sm font-medium">
+                              {item.quantity} {item.unit_abrev}
+                            </span>
+                            <button
+                              onClick={() => openEditModal(item)}
+                              className="text-blue-500 hover:text-blue-600"
+                              title="Editar cantidad"
+                            >
+                              <Edit2 size={16} />
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => updateQuantity(item.id, -1)}
+                              className="w-7 h-7 bg-rose-500 hover:bg-rose-600 text-white rounded-full flex items-center justify-center"
+                            >
+                              <Minus size={12} />
+                            </button>
+                            <span className="text-sm">{item.quantity}</span>
+                            <button
+                              onClick={() => updateQuantity(item.id, 1)}
+                              className="w-7 h-7 bg-emerald-500 hover:bg-emerald-600 text-white rounded-full flex items-center justify-center"
+                            >
+                              <Plus size={12} />
+                            </button>
+                          </>
+                        )}
                       </div>
+                    </div>
+                    <div className="text-right text-sm">
                       <div
                         className={`font-bold ${
                           theme === "dark"
@@ -462,12 +610,12 @@ const filteredProducts = products.filter((p) =>
                             : "text-orange-600"
                         }`}
                       >
-                        ${(item.price * item.quantity).toLocaleString()}
+                        ${lineTotalAmount.toLocaleString()}
                       </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -533,9 +681,7 @@ const filteredProducts = products.filter((p) =>
       {showProfile && (
         <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-50">
           <div
-            className={`w-80 rounded-2xl p-6 shadow-xl border border-orange-100 ${
-              theme === "dark" ? "bg-slate-900 text-white" : "bg-white"
-            }`}
+            className={`w-80 rounded-2xl p-6 shadow-xl border border-orange-100 ${theme === "dark" ? "bg-slate-900 text-white" : "bg-white"}`}
           >
             <div className="flex flex-col items-center gap-2">
               {profilePhoto ? (
@@ -582,6 +728,21 @@ const filteredProducts = products.filter((p) =>
         </div>
       )}
 
+      {/* ===== Modal cantidad ===== */}
+      {showQuantityModal && modalProduct && (
+        <QuantityModal
+          product={modalProduct}
+          currentQty={editItemId ? cart.find(i => i.id === editItemId)?.quantity.toString() : ""}
+          onSave={handleSaveQuantity}
+          onClose={() => {
+            setShowQuantityModal(false);
+            setModalProduct(null);
+            setEditItemId(null);
+          }}
+          theme={theme}
+        />
+      )}
+
       {/* ===== Modal Perfil completo ===== */}
       {showPerfilCajera && (
         <PerfilCajera
@@ -603,6 +764,7 @@ const filteredProducts = products.filter((p) =>
             usuario={storedUser}
             idCaja={idCajaAbierta}
             onClose={() => setShowCobrar(false)}
+            onSuccess={handleCobrarSuccess}
           />
         </div>
       )}
@@ -633,7 +795,7 @@ const filteredProducts = products.filter((p) =>
               id_usuario: data.id_usuario,
               id_sucursal: 1,
               fecha_apertura: data.abiertoEn,
-              monto_inicial: data.base,
+              monto_inicial: Number(data.base),
               estado: 'abierta'
             })
           })

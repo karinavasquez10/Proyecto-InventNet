@@ -24,20 +24,12 @@ function useSystemTheme() {
 }
 
 /* =========== Control global: caja abierta (bloqueo de abrir caja) =========== */
-/*
-  Implementamos un control global usando localStorage para determinar si hay
-  una sesión de caja abierta en curso. Si existe "caja_abierta" y no ha sido cerrada,
-  NO se debe poder mostrar el modal de abrir caja.
-*/
-
 function isCajaAbiertaLocal() {
   const local = localStorage.getItem("caja_abierta");
   if (!local) return null;
   try {
     const obj = JSON.parse(local);
-    // La quitamos sólo por campo 'cerrada' en local, o id_caja nulo
     if (obj && obj.estado === "abierta" && obj.id_caja) {
-      // Admite borrado manual: expirará sólo si el objeto es eliminado o explícitamente cambia de estado/cierre
       return obj;
     }
   } catch (e) {console.log(e)}
@@ -46,42 +38,33 @@ function isCajaAbiertaLocal() {
 
 /* ====================== Modal público ====================== */
 function AbrirCaja({ open, onClose, usuario }) {
-  // Control de bloqueo si ya hay caja abierta
   const [cajaEnCurso, setCajaEnCurso] = React.useState(isCajaAbiertaLocal());
   const [bloqueada, setBloqueada] = React.useState(!!cajaEnCurso);
 
-  // Escucha el storage por cambios externos (otra pestaña).
   React.useEffect(() => {
     const actualizar = () => {
       const active = isCajaAbiertaLocal();
       setCajaEnCurso(active);
       setBloqueada(!!active);
-      // Si abrimos la vista manualmente y la caja se cierra desde otro lado, re-enable
-      // Si se abre la caja en otra pestaña, bloquea aquí también.
     };
     window.addEventListener("storage", actualizar);
     return () => window.removeEventListener("storage", actualizar);
   }, []);
 
-  // También, cada vez que se monta el modal (open=true), verifica el estado.
   React.useEffect(() => {
     const active = isCajaAbiertaLocal();
     setCajaEnCurso(active);
     setBloqueada(!!active);
   }, [open]);
 
-  // Usamos un callback para que el Body pueda "bloquear" al abrir exitosamente la caja
   const handleBloqueoExitoso = React.useCallback(() => {
-    // Vuelve a leer el localStorage (por si se guardó con nueva info)
     const active = isCajaAbiertaLocal();
     setCajaEnCurso(active);
     setBloqueada(!!active);
   }, []);
 
-  // Si no está visible, retorna null
   if (!open) return null;
 
-  // Mostar mensaje amable si ya hay sesión abierta, en vez del modal normal
   if (bloqueada) {
     return createPortal(
       <ModalShell onClose={onClose}>
@@ -111,7 +94,6 @@ function AbrirCaja({ open, onClose, usuario }) {
     );
   }
 
-  // Si no hay bloqueo, renderizar el modal normal
   return createPortal(
     <ModalShell onClose={onClose}>
       <AbrirCajaBody onClose={onClose} usuario={usuario} onCajaAbierta={handleBloqueoExitoso} />
@@ -170,25 +152,26 @@ const DENOMS = [
   { label: "$100", value: 100 },
 ];
 
-// URL importante: la API en este ejemplo debe exponer /cajas para la tabla "caja"
-const API_URL =  "http://localhost:5000/api"; // Mejor que dejar hardcodeada
+const API_URL = "http://localhost:5000/api";
 
 /* ====================== Cuerpo del modal ====================== */
 function AbrirCajaBody({ onClose, usuario, onCajaAbierta }) {
   const theme = useSystemTheme();
   const now = new Date();
   const [cajero, setCajero] = React.useState(usuario?.nombre || "");
-  const [sede, setSede] = React.useState('1'); // Inicial: ID '1' como string
+  const [sede, setSede] = React.useState('1');
   const [caja, setCaja] = React.useState("Caja 1");
-  const [base, setBase] = React.useState("");
+  
+  // ====== CORRECCIÓN CRÍTICA: Manejo de base como STRING puro ======
+  const [base, setBase] = React.useState(""); // Siempre string para el input
+  
   const [obs, setObs] = React.useState("");
   const [denoms, setDenoms] = React.useState(DENOMS.map((d) => ({ ...d, qty: 0 })));
   const [loading, setLoading] = React.useState(false);
-  const [sucursales, setSucursales] = React.useState([]); // [{id_sucursal, nombre, ciudad}]
+  const [sucursales, setSucursales] = React.useState([]);
   const [sucLoading, setSucLoading] = React.useState(true);
   const [sucError, setSucError] = React.useState(null);
 
-  // Fetch sucursales al montar el componente
   React.useEffect(() => {
     const fetchSucursales = async () => {
       try {
@@ -198,21 +181,12 @@ function AbrirCajaBody({ onClose, usuario, onCajaAbierta }) {
         if (!res.ok) throw new Error(`Error ${res.status}: No se pudieron cargar sucursales.`);
         const data = await res.json();
         setSucursales(data);
-        // Set initial sede to first active if available and no match for '1'
         if (data.length > 0 && !data.some(s => s.id_sucursal.toString() === sede)) {
           setSede(data[0].id_sucursal.toString());
         }
       } catch (err) {
         console.error("Error fetching sucursales:", err);
         setSucError(err.message);
-        // Fallback to hardcoded with objects for consistency
-        setSucursales([
-          { id_sucursal: 1, nombre: "Principal" },
-          { id_sucursal: 2, nombre: "Sucursal Norte" },
-          { id_sucursal: 3, nombre: "Sucursal Sur" }
-        ]);
-        // Set to first fallback
-        setSede('1');
       } finally {
         setSucLoading(false);
       }
@@ -220,7 +194,6 @@ function AbrirCajaBody({ onClose, usuario, onCajaAbierta }) {
     fetchSucursales();
   }, []);
 
-  // Para integración con la facturación: guardamos la info de caja abierta en localStorage
   const registrarCajaAbierta = (infoCaja) => {
     localStorage.setItem(
       "caja_abierta",
@@ -233,9 +206,10 @@ function AbrirCajaBody({ onClose, usuario, onCajaAbierta }) {
     );
   };
 
-  // Parse base a número para los cálculos y validaciones
-  const baseNumber = Number(base) || 0;
-
+  // ====== CONVERSIÓN SEGURA A NÚMERO ======
+  // Convertir base (string) a número entero SIN DECIMALES
+  const baseNumber = parseInt(base || "0", 10);
+  
   const totalDesglose = denoms.reduce((s, d) => s + (Number(d.qty) || 0) * d.value, 0);
   const mismatch = baseNumber > 0 && totalDesglose > 0 && totalDesglose !== baseNumber;
 
@@ -255,61 +229,83 @@ function AbrirCajaBody({ onClose, usuario, onCajaAbierta }) {
       alert("El nombre del cajero es requerido.");
       return;
     }
-    if (!baseNumber || baseNumber <= 0) {
-      alert("Ingresa el valor de base.");
+    
+    // ====== VALIDACIÓN ESTRICTA ======
+    const montoInicialFinal = parseInt(base || "0", 10);
+    
+    if (!montoInicialFinal || montoInicialFinal <= 0 || isNaN(montoInicialFinal)) {
+      alert("❌ Ingresa un valor de base válido (número entero positivo).");
       return;
     }
+    
     if (mismatch && !window.confirm("La suma del desglose es diferente a la base. ¿Continuar?")) return;
 
-    // Asegúrate que el payload cumpla con los campos de la tabla caja en backend (cajas.js)
+    // ====== PAYLOAD LIMPIO ======
     const payload = {
       id_usuario: usuario.id,
-      id_sucursal: Number(sede), // ID numérico de la sucursal seleccionada
-      numero_caja: caja.replace("Caja ", ""), // por si API requiere solo el número
+      id_sucursal: Number(sede),
+      numero_caja: caja.replace("Caja ", ""),
       fecha_apertura: new Date().toISOString(),
-      monto_inicial: baseNumber,
+      monto_inicial: montoInicialFinal,   // ✅ Número entero exacto
+      monto_final: montoInicialFinal,     // ✅ Igual al inicial
       estado: "abierta",
       observaciones: obs,
-      desglose: denoms.map(d => ({ denominacion: d.value, cantidad: Number(d.qty) || 0 })) // esto se puede guardar en una tabla hija si tu modelo MySQL lo requiere
+      desglose: denoms.map(d => ({ 
+        denominacion: d.value, 
+        cantidad: Number(d.qty) || 0 
+      }))
     };
 
     try {
       setLoading(true);
+      
       const res = await fetch(`${API_URL}/cajas`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
+      
       if (!res.ok) {
         const errorText = await res.text();
         throw new Error(errorText || `Error ${res.status}: No se pudo abrir la caja.`);
       }
+      
       const data = await res.json();
 
-      // Guardar info de caja abierta para operar facturación y bloqueo modal
+      // ====== VERIFICACIÓN DE INTEGRIDAD ======
+      if (data.monto_inicial !== montoInicialFinal) {
+        console.error('🚨 ALERTA: Discrepancia en monto_inicial', {
+          enviado: montoInicialFinal,
+          recibido: data.monto_inicial,
+          diferencia: Math.abs(data.monto_inicial - montoInicialFinal)
+        });
+      }
+
       registrarCajaAbierta({
-        ...payload,
         id_caja: data.id_caja,
+        id_usuario: usuario.id,
+        fecha_apertura: data.fecha_apertura,
+        monto_inicial: data.monto_inicial,
+        monto_final: data.monto_final,
         caja: caja,
         usuario: cajero,
+        estado: "abierta"
       });
 
-      // Llamamos callback de arriba (padre) para indicar que debe bloquear el modal en toda la app
       if (typeof onCajaAbierta === "function") {
         onCajaAbierta();
       }
 
-      alert(`✅ Caja abierta con éxito (ID: ${data.id_caja || ""})`);
+      alert(`✅ Caja abierta con éxito\n\nID: ${data.id_caja}\nMonto inicial: ${money(data.monto_inicial)}`);
       onClose();
     } catch (err) {
-      console.error("Error en handleSubmit:", err);
+      console.error("❌ Error en handleSubmit:", err);
       alert(`❌ Error al abrir caja: ${err.message}`);
     } finally {
       setLoading(false);
     }
   };
 
-  // Opciones para Sede: [{value: id_sucursal.toString(), label: nombre (ciudad)}]
   const sedeOptions = sucursales.map(s => ({
     value: s.id_sucursal.toString(),
     label: `${s.nombre}${s.ciudad ? ` (${s.ciudad})` : ''}`
@@ -414,18 +410,20 @@ function AbrirCajaBody({ onClose, usuario, onCajaAbierta }) {
               </Label>
               <div className="flex gap-2 items-center">
                 <Input
-                  type="number"
-                  min={0}
+                  type="text"
+                  inputMode="numeric"
                   value={base}
                   onChange={e => {
-                    // Solo permitir números positivos, sin decimales
+                    // ====== SOLO PERMITIR NÚMEROS ENTEROS ======
                     const val = e.target.value.replace(/\D/g, "");
                     setBase(val);
                   }}
-                  placeholder=""
+                  placeholder="0"
                   autoComplete="off"
                 />
-                <span className="text-sm font-semibold text-orange-800 dark:text-pink-200">{money(baseNumber)}</span>
+                <span className="text-sm font-semibold text-orange-800 dark:text-pink-200 whitespace-nowrap">
+                  {money(baseNumber)}
+                </span>
               </div>
             </div>
             <div className="md:text-right">
@@ -444,11 +442,11 @@ function AbrirCajaBody({ onClose, usuario, onCajaAbierta }) {
                 </div>
                 <div className="mt-1 flex items-center gap-2">
                   <Input
-                    type="number"
-                    min={0}
+                    type="text"
+                    inputMode="numeric"
                     value={d.qty}
                     onChange={e => {
-                      let val = e.target.value.replace(/\D/g, "");
+                      const val = e.target.value.replace(/\D/g, "");
                       setQty(idx, val);
                     }}
                     autoComplete="off"

@@ -1,3 +1,4 @@
+// cajas.js (actualizado para inicializar monto_final = monto_inicial al abrir caja)
 import express from "express";
 import pool from "../config/database.js";
 
@@ -19,6 +20,7 @@ router.post('/', async (req, res) => {
             id_sucursal, 
             fecha_apertura, 
             monto_inicial, 
+            monto_final,  // Nuevo: Aceptar monto_final (inicialmente igual a monto_inicial)
             estado 
         } = req.body;
 
@@ -26,25 +28,26 @@ router.post('/', async (req, res) => {
             return res.status(400).send('Faltan datos requeridos: id_usuario, monto_inicial');
         }
 
-        // Validar sucursal si se proporciona, o usar 1 por defecto
         let idSucursalFinal = id_sucursal || 1;
         await validarSucursal(idSucursalFinal);
 
+        const montoFinalInicial = monto_final !== undefined ? monto_final : monto_inicial;
+
         const [result] = await pool.query(
             `INSERT INTO caja 
-            (id_usuario, id_sucursal, fecha_apertura, monto_inicial, estado, total_ventas) 
-            VALUES (?, ?, ?, ?, ?, 0)`,
+            (id_usuario, id_sucursal, fecha_apertura, monto_inicial, monto_final, estado, total_ventas) 
+            VALUES (?, ?, ?, ?, ?, ?, 0)`,
             [
                 id_usuario, 
                 idSucursalFinal, 
                 fecha_apertura || new Date().toISOString(), 
                 monto_inicial, 
+                montoFinalInicial,
                 estado || 'abierta'
             ]
         );
 
         const [rows] = await pool.query('SELECT * FROM caja WHERE id_caja = ?', [result.insertId]);
-        console.log(`Caja abierta exitosamente: ID ${result.insertId} para sucursal ${idSucursalFinal}`);
         res.status(201).json(rows[0]);
     } catch (error) {
         console.error('Error al abrir caja:', error);
@@ -55,18 +58,99 @@ router.post('/', async (req, res) => {
     }
 });
 
+// PUT /api/cajas/:id_caja - Actualizar caja (CORREGIDO COMPLETAMENTE)
+router.put('/:id_caja', async (req, res) => {
+    const connection = await pool.getConnection();
+    try {
+        await connection.beginTransaction();
+
+        const { id_caja } = req.params;
+        const { total_venta, cambio = 0, metodo_pago = "efectivo" } = req.body;
+
+        if (total_venta === undefined) {
+            await connection.rollback();
+            return res.status(400).send('Debe proporcionar "total_venta"');
+        }
+
+        const [cajas] = await connection.query('SELECT * FROM caja WHERE id_caja = ?', [id_caja]);
+        
+        if (cajas.length === 0) {
+            await connection.rollback();
+            return res.status(404).send('Caja no encontrada');
+        }
+
+        const caja = cajas[0];
+
+        const montoInicialOriginal = caja.monto_inicial;
+        
+        if (!montoInicialOriginal || montoInicialOriginal <= 0) {
+            await connection.rollback();
+            return res.status(500).send('Error: monto_inicial de la caja está corrupto o es inválido');
+        }
+
+        const ingresoVenta = total_venta;
+        const salidaCambio = (metodo_pago === "efectivo" && cambio > 0) ? cambio : 0;
+        
+        const montoFinalAnterior = caja.monto_final || montoInicialOriginal;
+        const nuevoMontoFinal = montoFinalAnterior + ingresoVenta - salidaCambio;
+        const nuevoTotalVentas = (caja.total_ventas || 0) + total_venta;
+
+        if (nuevoMontoFinal < 0) {
+            await connection.rollback();
+            return res.status(400).send(
+                `Operación rechazada: el monto final no puede ser negativo.\n` +
+                `Monto actual: ${montoFinalAnterior}, Ingreso: ${ingresoVenta}, Cambio: ${salidaCambio}`
+            );
+        }
+
+        await connection.query(
+            `UPDATE caja 
+            SET monto_final = ?,
+                total_ventas = ?
+            WHERE id_caja = ?`,
+            [nuevoMontoFinal, nuevoTotalVentas, id_caja]
+        );
+
+        await connection.query(
+            `INSERT INTO movimientos_caja 
+            (id_caja, tipo, descripcion, monto) 
+            VALUES (?, 'ingreso', ?, ?)`,
+            [
+                id_caja, 
+                `Venta - Total: $${total_venta.toLocaleString()}${salidaCambio > 0 ? ` (Cambio: $${salidaCambio.toLocaleString()})` : ''}`, 
+                ingresoVenta
+            ]
+        );
+
+        await connection.commit();
+
+        const [updated] = await connection.query('SELECT * FROM caja WHERE id_caja = ?', [id_caja]);
+        
+        if (updated[0].monto_inicial !== montoInicialOriginal) {
+            // 
+        }
+        
+        res.json(updated[0]);
+    } catch (error) {
+        await connection.rollback();
+        console.error('❌ Error al actualizar caja:', error);
+        res.status(500).send('Error al actualizar caja: ' + error.message);
+    } finally {
+        connection.release();
+    }
+});
+
 // PUT /api/cajas/:id_caja/cerrar - Cerrar caja
 router.put('/:id_caja/cerrar', async (req, res) => {
     try {
         const { id_caja } = req.params;
         const { 
             fecha_cierre, 
-            monto_final, 
-            diferencia, 
+            monto_final,
+            diferencia,
             observaciones 
         } = req.body;
 
-        // Obtener la caja actual
         const [cajas] = await pool.query('SELECT * FROM caja WHERE id_caja = ?', [id_caja]);
         
         if (cajas.length === 0) {
@@ -75,11 +159,20 @@ router.put('/:id_caja/cerrar', async (req, res) => {
 
         const caja = cajas[0];
 
-        // Calcular diferencia si no viene (chequeo nulo para total_ventas)
-        const totalVentas = caja.total_ventas || 0;
+        const montoInicialOriginal = caja.monto_inicial;
+        
+        if (!montoInicialOriginal || montoInicialOriginal <= 0) {
+            return res.status(500).send('Error: monto_inicial de la caja está corrupto');
+        }
+
+        const montoFinalCierre = monto_final !== undefined 
+            ? monto_final 
+            : caja.monto_final;
+
+        const esperado = caja.monto_final;
         const diferenciaCalculada = diferencia !== undefined 
             ? diferencia 
-            : monto_final - caja.monto_inicial - totalVentas;
+            : montoFinalCierre - esperado;
 
         await pool.query(
             `UPDATE caja 
@@ -87,22 +180,27 @@ router.put('/:id_caja/cerrar', async (req, res) => {
                 monto_final = ?, 
                 diferencia = ?, 
                 estado = 'cerrada',
-                observaciones = ?
+                observaciones = CONCAT(COALESCE(observaciones, ''), ?, ?)
             WHERE id_caja = ?`,
             [
                 fecha_cierre || new Date().toISOString(),
-                monto_final,
+                montoFinalCierre,
                 diferenciaCalculada,
+                observaciones ? '\n--- CIERRE ---\n' : '',
                 observaciones || '',
                 id_caja
             ]
         );
 
         const [updated] = await pool.query('SELECT * FROM caja WHERE id_caja = ?', [id_caja]);
-        console.log(`Caja cerrada exitosamente: ID ${id_caja}, diferencia: ${diferenciaCalculada}`);
+        
+        if (updated[0].monto_inicial !== montoInicialOriginal) {
+            // 
+        }
+        
         res.json(updated[0]);
     } catch (error) {
-        console.error('Error al cerrar caja:', error);
+        console.error('❌ Error al cerrar caja:', error);
         res.status(500).send('Error al cerrar caja: ' + error.message);
     }
 });
@@ -124,7 +222,7 @@ router.get('/', async (req, res) => {
         res.json(rows);
     } catch (error) {
         console.error('Error al obtener cajas:', error);
-        if (error.sqlMessage) console.error('SQL Error:', error.sqlMessage);  // Debug MySQL/MariaDB
+        if (error.sqlMessage) ;
         res.status(500).send('Error al obtener cajas: ' + error.message);
     }
 });
@@ -134,7 +232,6 @@ router.get('/:id_caja', async (req, res) => {
     try {
         const { id_caja } = req.params;
         
-        // Obtener datos de la caja
         const [cajas] = await pool.query(`
             SELECT 
                 c.*,
@@ -151,7 +248,6 @@ router.get('/:id_caja', async (req, res) => {
             return res.status(404).send('Caja no encontrada');
         }
 
-        // Solo si caja existe, fetch ventas
         const [ventas] = await pool.query(`
             SELECT 
                 v.*,
@@ -168,7 +264,7 @@ router.get('/:id_caja', async (req, res) => {
         });
     } catch (error) {
         console.error('Error al obtener detalle de caja:', error);
-        if (error.sqlMessage) console.error('SQL Error details:', error.sqlMessage);  // Debug MySQL/MariaDB
+        if (error.sqlMessage) ;
         res.status(500).send('Error al obtener detalle de caja: ' + error.message);
     }
 });
@@ -196,7 +292,7 @@ router.get('/abierta/:id_usuario', async (req, res) => {
         res.json(cajas[0]);
     } catch (error) {
         console.error('Error al buscar caja abierta:', error);
-        if (error.sqlMessage) console.error('SQL Error:', error.sqlMessage);  // Debug
+        if (error.sqlMessage) ;
         res.status(500).send('Error al buscar caja abierta: ' + error.message);
     }
 });

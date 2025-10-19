@@ -40,7 +40,7 @@ const API_URL = "http://localhost:5000/api";
 
 const CerrarCaja = ({ onClose }) => {
   const theme = useSystemTheme();
-  const [conteoGastos, setConteoGastos] = useState({});  // Renombrado para claridad
+  const [conteoGastos, setConteoGastos] = useState({});
   const [cajaData, setCajaData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -55,30 +55,23 @@ const CerrarCaja = ({ onClose }) => {
           throw new Error("No se encontró caja abierta en localStorage.");
         }
         const cajaLocal = JSON.parse(local);
-        console.log("Caja local desde storage:", cajaLocal);  // Debug
         if (!cajaLocal.id_caja) {
           throw new Error("ID de caja no válido en localStorage.");
         }
 
-        // Fetch detalles completos de la caja desde backend
         const url = `${API_URL}/cajas/${cajaLocal.id_caja}`;
-        console.log("Fetching caja from:", url);  // Debug URL
         const res = await fetch(url);
-        console.log("Response status:", res.status);  // Debug status
         if (!res.ok) {
           const errorText = await res.text();
-          console.error("Full error response:", errorText);  // Debug body
           throw new Error(`Error ${res.status}: ${errorText}`);
         }
         const data = await res.json();
-        console.log("Caja data from backend:", data);  // Debug data
         const caja = data.caja || data;
         if (caja.estado !== 'abierta') {
           throw new Error("La caja ya está cerrada o no es válida.");
         }
         setCajaData(caja);
       } catch (err) {
-        console.error("Error fetching caja:", err);
         setError(err.message);
       } finally {
         setLoading(false);
@@ -94,18 +87,20 @@ const CerrarCaja = ({ onClose }) => {
     });
   };
 
+  // Suma de billetes y monedas contados (conteo actual, usado para el monto final y diferencia)
   const totalGastos = Object.entries(conteoGastos).reduce(
     (acc, [denStr, cant]) => {
-      const den = parseInt(denStr);  // Asegurar numérico
+      const den = parseInt(denStr);  // Asegura numérico
       return acc + (den * (cant || 0));
     },
     0
   );
 
-  const montoInicial = cajaData?.monto_inicial || 0;
-  const totalVentas = cajaData?.total_ventas || 0;
-  const gananciasBrutas = totalVentas;  // Predicción simple: totalVentas como ganancia bruta
-  const diferencia = gananciasBrutas - totalGastos;  // Ganancia neta: ganancias - gastos
+  const montoInicial = Number(cajaData?.monto_inicial);
+  const totalVentas = Number(cajaData?.total_ventas);
+
+  const montoFinal = Number(cajaData?.monto_final) - totalGastos;
+  const diferencia = (montoInicial + totalVentas) - montoFinal;
 
   const money = (n) =>
     (Number(n) || 0).toLocaleString("es-CO", {
@@ -120,23 +115,16 @@ const CerrarCaja = ({ onClose }) => {
       return;
     }
 
-    // Comentado: Ya NO es obligatorio tomar los gastos registrados
-    // if (totalGastos <= 0) {
-    //   alert("Ingrese el conteo de gastos.");
-    //   return;
-    // }
-
     try {
       setLoading(true);
       const payload = {
         fecha_cierre: new Date().toISOString(),
-        monto_final: totalGastos,  // Total de gastos contados, puede ser 0 si no hay registro
-        diferencia: diferencia,  // Ganancia neta
+        monto_final: montoFinal,
+        diferencia: diferencia,
         observaciones: observaciones || "",
       };
 
       const url = `${API_URL}/cajas/${cajaData.id_caja}/cerrar`;
-      console.log("Closing caja at:", url, "Payload:", payload);  // Debug
       const res = await fetch(url, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -145,20 +133,17 @@ const CerrarCaja = ({ onClose }) => {
 
       if (!res.ok) {
         const errorText = await res.text();
-        console.error("Close error response:", errorText);  // Debug
         throw new Error(errorText || `Error ${res.status}: No se pudo cerrar la caja.`);
       }
-
-      const data = await res.json();
-      console.log("Caja cerrada:", data);  // Debug
 
       // Limpiar localStorage para desbloquear AbrirCaja
       localStorage.removeItem("caja_abierta");
 
-      alert(`✅ Caja cerrada exitosamente. ID: ${cajaData.id_caja}, Ganancia Neta: ${money(diferencia)}`);
+      alert(
+        `✅ Caja cerrada exitosamente. ID: ${cajaData.id_caja}, Monto Final: ${money(montoFinal)}, Diferencia: ${money(diferencia)}`
+      );
       onClose();
     } catch (err) {
-      console.error("Error en handleFinalizar:", err);
       alert(`❌ Error al cerrar caja: ${err.message}`);
     } finally {
       setLoading(false);
@@ -193,9 +178,7 @@ const CerrarCaja = ({ onClose }) => {
   }
 
   return (
-    <div
-      className={`fixed inset-0 z-[60] flex items-center justify-center bg-black/50`}
-    >
+    <div className={`fixed inset-0 z-[60] flex items-center justify-center bg-black/50`}>
       <div
         className={`rounded-2xl shadow-xl w-[800px] h-[600px] flex flex-col overflow-hidden transition-colors duration-300 border
           ${
@@ -222,7 +205,7 @@ const CerrarCaja = ({ onClose }) => {
           </button>
         </div>
 
-        {/* Resumen simplificado: Monto Inicial, Total Ventas, y Ganancias */}
+        {/* Resumen superior: Solo Monto Inicial y Total Ventas */}
         <div className="grid grid-cols-2 gap-4 p-5">
           <ResumenBox
             label="Monto Inicial"
@@ -231,7 +214,7 @@ const CerrarCaja = ({ onClose }) => {
             theme={theme}
           />
           <ResumenBox
-            label="Total Ventas"
+            label="Total Ventas (Bruto)"
             value={totalVentas}
             color="from-green-400 to-emerald-500"
             theme={theme}
@@ -275,40 +258,29 @@ const CerrarCaja = ({ onClose }) => {
           </div>
         </div>
 
-        {/* Diferencia y Observaciones */}
+        {/* Resumen inferior: Monto Final y Diferencia */}
+        <div className="px-5 py-3 border-t transition-colors grid grid-cols-2 gap-3">
+          <ResumenBox
+            label="Monto Final (Conteo)"
+            value={montoFinal}
+            color="from-yellow-400 to-amber-500"
+            theme={theme}
+          />
+          <ResumenBox
+            label="Diferencia"
+            value={diferencia}
+            color={diferencia >= 0 ? "from-emerald-400 to-green-500" : "from-red-400 to-rose-500"}
+            theme={theme}
+            isNegative={diferencia < 0}
+          />
+        </div>
+
+        {/* Observaciones y Botones */}
         <div
           className={`mt-auto px-5 py-4 border-t transition-colors ${
             theme === "dark" ? "border-slate-700" : "border-slate-200"
           }`}
         >
-          <div className="flex justify-between items-center mb-1">
-            <span className="font-medium">Total Gastos:</span>
-            <span className="font-semibold text-lg">
-              {money(totalGastos)}
-            </span>
-          </div>
-          <div className="flex justify-between items-center mb-4">
-            <span
-              className={`font-medium ${
-                diferencia >= 0
-                  ? "text-emerald-600 dark:text-emerald-400"
-                  : "text-red-600 dark:text-rose-400"
-              }`}
-            >
-              Ganancia Neta:
-            </span>
-            <span
-              className={`font-bold text-lg ${
-                diferencia >= 0
-                  ? "text-emerald-600 dark:text-emerald-400"
-                  : "text-red-600 dark:text-rose-400"
-              }`}
-            >
-              {money(diferencia)}
-            </span>
-          </div>
-
-          {/* Observaciones */}
           <div className="mb-3">
             <label className="block text-xs font-medium mb-1">Observaciones (opcional)</label>
             <textarea
@@ -356,7 +328,7 @@ const CerrarCaja = ({ onClose }) => {
 };
 
 /* ================== Subcomponente para los box resumen ================== */
-function ResumenBox({ label, value, color, theme }) {
+function ResumenBox({ label, value, color, theme, isNegative = false }) {
   const money = (n) =>
     (Number(n) || 0).toLocaleString("es-CO", {
       style: "currency",
@@ -373,7 +345,9 @@ function ResumenBox({ label, value, color, theme }) {
       }`}
     >
       <h3 className="text-sm font-medium opacity-90">{label}</h3>
-      <p className="text-lg font-bold mt-1">{money(value)}</p>
+      <p className={`text-lg font-bold mt-1 ${isNegative ? 'text-red-200' : ''}`}>
+        {money(value)}
+      </p>
     </div>
   );
 }
