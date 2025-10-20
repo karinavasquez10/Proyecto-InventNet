@@ -10,6 +10,15 @@ export default function HomeAdmin() {
   const location = useLocation();
   const navigate = useNavigate();
 
+  // Estado para la fecha y hora actual
+const [currentTime, setCurrentTime] = useState(new Date());
+
+// Actualiza la hora cada segundo
+useEffect(() => {
+  const interval = setInterval(() => setCurrentTime(new Date()), 1000);
+  return () => clearInterval(interval);
+}, []);
+
   const handleLogout = () => {
     localStorage.removeItem("authUser");
     navigate("/LoginForm");
@@ -224,6 +233,26 @@ export default function HomeAdmin() {
                 <div className="text-xs text-slate-500">{admin.rol}</div>
               </div>
             </div>
+
+                      {/* Fecha y hora en tiempo real */}
+          <div className="hidden sm:flex flex-col items-end mr-4 text-right">
+            <span className="text-xs text-slate-500">
+              {currentTime.toLocaleDateString("es-CO", {
+                weekday: "long",
+                day: "2-digit",
+                month: "long",
+                year: "numeric",
+              })}
+            </span>
+            <span className="text-sm font-semibold text-slate-700">
+              {currentTime.toLocaleTimeString("es-CO", {
+                hour: "2-digit",
+                minute: "2-digit",
+                second: "2-digit",
+              })}
+            </span>
+          </div>
+
 
             <div className="flex items-center gap-3 relative">
               <Link

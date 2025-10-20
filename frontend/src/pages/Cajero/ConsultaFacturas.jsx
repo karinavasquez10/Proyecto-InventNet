@@ -2,6 +2,8 @@
 import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { X, Printer } from "lucide-react";
+import ModeloFactura from "../Admin/ModeloFactura"; // ✅ Importa tu factura con diseño
+
 
 /* =================== Hook: detectar tema del sistema =================== */
 function useSystemTheme() {
@@ -78,6 +80,8 @@ function ConsultaFacturasBody({ onClose }) {
   const [facturas, setFacturas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [facturaDatos, setFacturaDatos] = useState(null); // ✅ Nuevo estado
+
 
   // Estados para filtros mejorados
   const [busqueda, setBusqueda] = useState("");
@@ -209,6 +213,63 @@ function ConsultaFacturasBody({ onClose }) {
       currency: "COP",
       maximumFractionDigits: 0,
     });
+
+    /* ==================== FUNCIONES: Vista previa y Reimpresión ==================== */
+const openFacturaPreview = async (factura) => {
+  try {
+    // 1️⃣ Obtener los datos completos de la venta desde el backend
+    const res = await fetch(`${API_URL}/ventas/${factura.id_venta}`);
+    const detalle = await res.json();
+
+    const datosFactura = {
+      numero: `F-${String(factura.id_venta).padStart(6, "0")}`,
+      fecha: new Date(factura.fecha).toLocaleString("es-CO"),
+      cliente: detalle.cliente?.nombre || "Cliente General",
+      cajero: factura.nombre_usuario,
+      metodoPago: factura.metodo_pago,
+      subtotal: factura.subtotal,
+      descuento: factura.descuento,
+      iva: (factura.impuesto / factura.subtotal) || 0.19,
+      recibido: detalle.recibido || factura.total,
+      cambio: detalle.cambio || 0,
+      productos: detalle.items || [],
+    };
+
+    // 2️⃣ Render temporal en DOM oculto
+    setFacturaDatos(datosFactura);
+    await new Promise((r) => setTimeout(r, 500));
+
+    const facturaContainer = document.querySelector("#factura-pdf-container .relative");
+    if (!facturaContainer) {
+      alert("No se encontró el diseño de la factura.");
+      return;
+    }
+
+    // 3️⃣ Clonar y abrir en nueva pestaña
+    const facturaHTML = facturaContainer.outerHTML;
+    const printWindow = window.open("", "_blank", "width=600,height=800");
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>${datosFactura.numero}</title>
+          <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+          <style>body{background:white;display:flex;justify-content:center;padding:20px}</style>
+        </head>
+        <body>${facturaHTML}
+          <script>window.onload=function(){window.print()}</script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  } catch (err) {
+    console.error("❌ Error mostrando factura:", err);
+    alert("No se pudo mostrar la vista previa de la factura.");
+  }
+};
+
+const handleVerFactura = (factura) => openFacturaPreview(factura);
+const handleReimprimirFactura = (factura) => openFacturaPreview(factura);
+
 
   if (loading) {
     return (
@@ -371,12 +432,11 @@ function ConsultaFacturasBody({ onClose }) {
                         <Td className="text-right font-semibold">{money(r.total)}</Td>
                         <Td className="text-center">
                           <div className="flex justify-center gap-2">
-                            <SmallBtn variant="outline" onClick={() => window.print()}>
-                              <Printer size={14} />
-                            </SmallBtn>
-                            <SmallBtn onClick={() => alert(`Detalles de factura #${r.id_venta}: ${r.observaciones || 'Sin observaciones'}`)}>
-                              Ver
-                            </SmallBtn>
+                         <SmallBtn variant="outline" onClick={() => handleReimprimirFactura(r)}>
+                          <Printer size={14} />
+                        </SmallBtn>
+                        <SmallBtn onClick={() => handleVerFactura(r)}>Ver</SmallBtn>
+
                           </div>
                         </Td>
                       </tr>
@@ -391,6 +451,11 @@ function ConsultaFacturasBody({ onClose }) {
                 )}
               </tbody>
             </table>
+            {/* Contenedor oculto para renderizar el diseño de factura */}
+        <div id="factura-pdf-container" style={{ display: "none" }}>
+          {facturaDatos && <ModeloFactura open={true} datos={facturaDatos} />}
+        </div>
+
           </div>
 
           {/* Paginación */}
