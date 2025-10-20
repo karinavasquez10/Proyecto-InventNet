@@ -1,4 +1,5 @@
-// src/App.jsx
+import React from "react";
+
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 
 // 🧠 Importar el provider global del tema
@@ -42,6 +43,7 @@ import UsuariosPermiso from "./pages/Admin/UsuariosPermiso";
 import PerfilAdmin from "./pages/Admin/PerfilAdmin";
 import PerfilCajera from "./pages/Cajero/PerfilCajera";
 import GestionPapelera from "./pages/Admin/GestionPapelera";
+import ModeloFactura from "./pages/Admin/ModeloFactura";
 
 function App() {
   return (
@@ -106,6 +108,7 @@ function App() {
               <Route path="UsuariosPermiso" element={<UsuariosPermiso />} />
               <Route path="PerfilAdmin" element={<PerfilAdmin />} />
               <Route path="GestionPapelera" element={<GestionPapelera />} />
+              <Route path="ModeloFactura" element={<ModeloFactura />} />
               
             </Route>
           </Routes>

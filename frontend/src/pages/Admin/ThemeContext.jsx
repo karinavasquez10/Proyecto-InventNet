@@ -1,25 +1,13 @@
-// src/context/ThemeContext.jsx
-import React, { createContext, useContext, useEffect, useState } from "react";
+// src/pages/Admin/ThemeContext.jsx
+import React, { createContext, useContext, useState, useEffect } from "react";
 
 const ThemeContext = createContext();
 
-export function useTheme() {
-  return useContext(ThemeContext);
-}
-
 export function ThemeProvider({ children }) {
-  // ✅ Siempre inicia en "light" al cargar la app
-  const [theme, setTheme] = useState("light");
+  const [theme, setTheme] = useState(
+    localStorage.getItem("theme") || "light"
+  );
 
-  // ✅ Si hay un tema guardado y es diferente, se aplica
-  useEffect(() => {
-    const savedTheme = localStorage.getItem("theme");
-    if (savedTheme && savedTheme !== theme) {
-      setTheme(savedTheme);
-    }
-  }, []);
-
-  // ✅ Aplica la clase "dark" a nivel global
   useEffect(() => {
     const root = document.documentElement;
     if (theme === "dark") {
@@ -30,13 +18,14 @@ export function ThemeProvider({ children }) {
     localStorage.setItem("theme", theme);
   }, [theme]);
 
-  const toggleTheme = () => {
+  const toggleTheme = () =>
     setTheme((prev) => (prev === "light" ? "dark" : "light"));
-  };
 
   return (
-    <ThemeContext.Provider value={{ theme, setTheme, toggleTheme }}>
+    <ThemeContext.Provider value={{ theme, toggleTheme, setTheme }}>
       {children}
     </ThemeContext.Provider>
   );
 }
+
+export const useTheme = () => useContext(ThemeContext);
