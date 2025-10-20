@@ -2,6 +2,8 @@
 import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { X, Printer } from "lucide-react";
+import ModeloFactura from "../Admin/ModeloFactura"; // ✅ Importa tu factura con diseño
+
 
 /* =================== Hook: detectar tema del sistema =================== */
 function useSystemTheme() {
@@ -78,6 +80,8 @@ function ConsultaFacturasBody({ onClose }) {
   const [facturas, setFacturas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [facturaDatos, setFacturaDatos] = useState(null); // ✅ Nuevo estado
+
 
   // Estados para filtros mejorados
   const [busqueda, setBusqueda] = useState("");
@@ -210,6 +214,97 @@ function ConsultaFacturasBody({ onClose }) {
       maximumFractionDigits: 0,
     });
 
+    /* ==================== FUNCIONES: Vista previa y Reimpresión ==================== */
+const openFacturaPreview = async (factura, modo = "print") => {
+  try {
+    // 1️⃣ Obtener datos del backend
+    const res = await fetch(`${API_URL}/ventas/${factura.id_venta}`);
+    const detalle = await res.json();
+
+    const venta = detalle.venta || detalle || {};
+    const items = detalle.detalle || detalle.items || [];
+
+    const recibidoReal =
+      venta.efectivo_recibido ??
+      venta.valor_recibido ??
+      venta.monto_recibido ??
+      detalle.recibido ??
+      factura.recibido ??
+      factura.total ??
+      0;
+
+    const cambioReal =
+      venta.cambio_devuelto ??
+      venta.vuelto ??
+      venta.cambio ??
+      detalle.cambio ??
+      factura.cambio ??
+      0;
+
+    const datosFactura = {
+      numero: `F-${String(factura.id_venta).padStart(6, "0")}`,
+      fecha: new Date(factura.fecha).toLocaleString("es-CO"),
+      cliente: venta.cliente?.nombre || venta.nombre_cliente || "Cliente General",
+      cajero: factura.nombre_usuario || venta.nombre_usuario,
+      metodoPago: factura.metodo_pago || venta.metodo_pago,
+      subtotal: venta.subtotal || factura.subtotal || 0,
+      descuento: venta.descuento || factura.descuento || 0,
+      iva: venta.impuesto || factura.impuesto || 0.19,
+      total: venta.total || factura.total || 0,
+      recibido: recibidoReal,
+      cambio: cambioReal,
+      productos: items.map((p) => ({
+        id: p.id_producto || p.id || Math.random(),
+        nombre: p.nombre || p.nombre_producto || "Producto",
+        cantidad: p.cantidad || 1,
+        precio: p.precio_unitario || p.precio || 0,
+      })),
+      modoVer: modo === "ver", // 👈 clave para ocultar botón de imprimir
+    };
+
+    // 🧩 Si es solo vista previa, mostramos el modal directamente
+    if (modo === "ver") {
+      setFacturaDatos(datosFactura);
+      return;
+    }
+
+    // 🧩 Si es impresión, generar vista como antes
+    setFacturaDatos(datosFactura);
+    await new Promise((r) => setTimeout(r, 500));
+
+    const facturaContainer = document.querySelector("#factura-pdf-container .relative");
+    if (!facturaContainer) {
+      alert("No se encontró el diseño de la factura.");
+      return;
+    }
+
+    const facturaHTML = facturaContainer.outerHTML;
+    const printWindow = window.open("", "_blank", "width=600,height=800");
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>${datosFactura.numero}</title>
+          <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+          <style>body{background:white;display:flex;justify-content:center;padding:20px}</style>
+        </head>
+        <body>${facturaHTML}
+          <script>window.onload=function(){window.print()}</script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  } catch (err) {
+    console.error("❌ Error mostrando factura:", err);
+    alert("No se pudo mostrar la vista previa de la factura.");
+  }
+};
+
+
+const handleVerFactura = (factura) => openFacturaPreview(factura, "ver");
+const handleReimprimirFactura = (factura) => openFacturaPreview(factura, "print");
+
+
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -322,6 +417,16 @@ function ConsultaFacturasBody({ onClose }) {
               : "bg-white border-orange-200"
           }`}
         >
+         {facturaDatos && (
+          <ModeloFactura
+            open={true}
+            onClose={() => setFacturaDatos(null)}
+            datos={facturaDatos}
+          />
+        )}
+
+
+
           <div className="flex justify-between items-center mb-4">
             <h3 className="font-semibold text-lg">Lista de Facturas</h3>
             <PrintButton onClick={() => window.print()} />
@@ -371,12 +476,11 @@ function ConsultaFacturasBody({ onClose }) {
                         <Td className="text-right font-semibold">{money(r.total)}</Td>
                         <Td className="text-center">
                           <div className="flex justify-center gap-2">
-                            <SmallBtn variant="outline" onClick={() => window.print()}>
-                              <Printer size={14} />
-                            </SmallBtn>
-                            <SmallBtn onClick={() => alert(`Detalles de factura #${r.id_venta}: ${r.observaciones || 'Sin observaciones'}`)}>
-                              Ver
-                            </SmallBtn>
+                         <SmallBtn variant="outline" onClick={() => handleReimprimirFactura(r)}>
+                          <Printer size={14} />
+                        </SmallBtn>
+                        <SmallBtn onClick={() => handleVerFactura(r)}>Ver</SmallBtn>
+
                           </div>
                         </Td>
                       </tr>
@@ -391,6 +495,11 @@ function ConsultaFacturasBody({ onClose }) {
                 )}
               </tbody>
             </table>
+            {/* Contenedor oculto para renderizar el diseño de factura */}
+        <div id="factura-pdf-container" style={{ display: "none" }}>
+          {facturaDatos && <ModeloFactura open={true} datos={facturaDatos} />}
+        </div>
+
           </div>
 
           {/* Paginación */}

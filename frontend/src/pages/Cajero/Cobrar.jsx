@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { X, UserPlus } from "lucide-react";
+import ModeloFactura from "../Admin/ModeloFactura";
 
 /* ======= Hook para sincronizar el modo de color global ======= */
 
@@ -26,6 +27,8 @@ function useSystemTheme() {
 /* ======= Componente principal ======= */
 function Cobrar({ initialCliente = null, carrito = [], usuario, idCaja, onClose, onSuccess }) {
   const theme = useSystemTheme();
+  // Estado para guardar temporalmente los datos de la factura
+  const [facturaDatos, setFacturaDatos] = useState(null);
 
   const [efectivo, setEfectivo] = useState("");
   const [cliente, setCliente] = useState(initialCliente);
@@ -316,10 +319,72 @@ async function confirmarVenta(metodo_pago = "efectivo", imprimir = false) {
       onSuccess();
     }
 
-    // 5. Imprimir si se solicitó
-    if (imprimir) {
-      setTimeout(() => window.print?.(), 300);
+if (imprimir) {
+  try {
+    // 1️⃣ Datos de la factura
+    const datosFactura = {
+      numero: `F-${String(data.id_venta).padStart(6, "0")}`,
+      fecha: new Date().toLocaleString("es-CO"),
+      cliente: cliente?.nombre || "Cliente General",
+      cajero: usuario?.nombre || "Cajero",
+      metodoPago: metodo_pago,
+      subtotal: subtotalFinal,
+      descuento: descuentoFinal,
+      iva: impuestoFinal / subtotalFinal,
+      recibido: efectivoDado,
+      cambio: cambioReal,
+      productos: items.map((it) => ({
+        id: it.id_producto,
+        nombre: it.nombre,
+        cantidad: it.cantidad,
+        precio: it.precio_unitario,
+      })),
+    };
+
+    // 2️⃣ Montar el componente ModeloFactura en el DOM oculto
+    setFacturaDatos(datosFactura);
+
+    // 3️⃣ Esperar que React lo renderice
+    await new Promise((resolve) => setTimeout(resolve, 600));
+
+    const facturaContainer = document.querySelector("#factura-pdf-container .relative");
+    if (!facturaContainer) {
+      alert("No se encontró el modelo de factura en el DOM.");
+      return;
     }
+
+    // 4️⃣ Clonar el HTML real renderizado (mantiene estilos)
+    const facturaHTML = facturaContainer.outerHTML;
+
+    // 5️⃣ Crear la nueva pestaña con tu factura
+    const printWindow = window.open("", "_blank", "width=600,height=800");
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>${datosFactura.numero}</title>
+          <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+          <style>
+            body { background: white; padding: 20px; display: flex; justify-content: center; }
+          </style>
+        </head>
+        <body>
+          ${facturaHTML}
+          <script>
+            window.onload = function() {
+              window.print();
+            };
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+
+  } catch (err) {
+    console.error("❌ Error al mostrar factura:", err);
+    alert("❌ No se pudo abrir la vista previa de impresión.");
+  }
+}
+
 
     onClose();
   } catch (err) {
@@ -648,6 +713,12 @@ async function confirmarVenta(metodo_pago = "efectivo", imprimir = false) {
           </div>
         </div>
       )}
+      {/* ======= Contenedor oculto para generar la factura PDF ======= */}
+<div id="factura-pdf-container" style={{ position: "absolute", left: "-9999px" }}>
+  {facturaDatos && <ModeloFactura open={true} datos={facturaDatos} />}
+</div>
+
+
     </div>
   );
 }
