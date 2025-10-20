@@ -11,6 +11,10 @@ import cajasRoutes from "./routes/cajas.js";
 import sucursalesRoutes from "./routes/sucursales.js";
 import ventasRoutes from "./routes/ventas.js";
 import movimientosCajaRoutes from "./routes/movimientosCaja.js";
+import proveedoresRoutes from "./routes/proveedores.js";
+import papeleraRoutes from "./routes/papelera.js";
+import indicadoresRoutes from "./routes/indicadores.js";
+import comprasRoutes from "./routes/compras.js";
 
 dotenv.config();
 
@@ -32,7 +36,10 @@ app.use("/api/cajas", cajasRoutes);
 app.use("/api/sucursales", sucursalesRoutes);
 app.use("/api/ventas", ventasRoutes);
 app.use("/api/movimientosCaja", movimientosCajaRoutes);
-
+app.use("/api/proveedores", proveedoresRoutes);
+app.use("/api/papelera", papeleraRoutes);
+app.use("/api/indicadores", indicadoresRoutes);
+app.use("/api/compras", comprasRoutes);
 
 // Añade un manejador de errores general
 app.use((err, req, res, next) => {

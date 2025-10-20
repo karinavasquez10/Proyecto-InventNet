@@ -67,5 +67,90 @@ router.post("/", async (req, res) => {
     res.status(500).json({ error: "Error al crear cliente" });
   }
 });
+/* =========================================================
+   PUT /api/clientes/:id - Actualizar cliente
+========================================================= */
+router.put("/:id", async (req, res) => {
+  const { id } = req.params;
+  const { nombre, identificacion, direccion, telefono, correo, tipo } = req.body;
+
+  if (!nombre || !identificacion) {
+    return res.status(400).json({ error: "Nombre e identificación son obligatorios" });
+  }
+
+  try {
+    const [result] = await pool.query(
+      `UPDATE clientes 
+       SET tipo = ?, nombre = ?, identificacion = ?, direccion = ?, telefono = ?, correo = ?
+       WHERE id_cliente = ? AND is_deleted = 0`,
+      [tipo || "persona", nombre, identificacion, direccion || null, telefono || null, correo || null, id]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: "Cliente no encontrado" });
+    }
+
+    const [rows] = await pool.query(
+      `SELECT 
+         id_cliente AS id,
+         tipo,
+         nombre,
+         identificacion,
+         direccion,
+         telefono,
+         correo,
+         fecha_creacion
+       FROM clientes
+       WHERE id_cliente = ?`,
+      [id]
+    );
+
+    res.json(rows[0]);
+  } catch (error) {
+    console.error("Error al actualizar cliente:", error);
+    res.status(500).json({ error: "Error al actualizar cliente" });
+  }
+});
+
+/* =========================================================
+   DELETE /api/clientes/:id - Soft delete + insertar en papelera
+========================================================= */
+router.delete("/:id", async (req, res) => {
+  const { id } = req.params;
+  const deletedBy = req.user?.id || 1; // Asumir auth middleware
+  try {
+    // Obtener registro completo para papelera
+    const [clienteRows] = await pool.query(
+      `SELECT * FROM clientes WHERE id_cliente = ? AND is_deleted = 0`,
+      [id]
+    );
+    if (clienteRows.length === 0) {
+      return res.status(404).json({ error: "Cliente no encontrado" });
+    }
+    const cliente = clienteRows[0];
+
+    // Insertar en papelera
+    await pool.query(
+      `INSERT INTO papelera (tabla, registro_id, contenido, id_usuario) VALUES (?, ?, ?, ?)`,
+      [
+        'clientes',
+        id,
+        JSON.stringify(cliente),
+        deletedBy
+      ]
+    );
+
+    // Soft delete
+    const [result] = await pool.query(
+      `UPDATE clientes SET is_deleted = 1, deleted_at = NOW(), deleted_by = ? WHERE id_cliente = ?`,
+      [deletedBy, id]
+    );
+
+    res.json({ message: "Cliente eliminado exitosamente" });
+  } catch (error) {
+    console.error("Error al eliminar cliente:", error);
+    res.status(500).json({ error: "Error al eliminar cliente" });
+  }
+});
 
 export default router;

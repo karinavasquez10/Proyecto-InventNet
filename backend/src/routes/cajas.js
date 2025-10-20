@@ -212,7 +212,7 @@ router.get('/', async (req, res) => {
             SELECT 
                 c.*,
                 u.nombre as nombre_usuario,
-                u.email as email_usuario,
+                u.correo as email_usuario,
                 s.nombre as nombre_sucursal
             FROM caja c
             LEFT JOIN usuarios u ON c.id_usuario = u.id_usuario

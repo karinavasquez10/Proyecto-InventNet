@@ -1,3 +1,4 @@
+// LoginForm.jsx (actualizado - permite login a cualquier usuario activo y redirecciona acorde a rol devuelto desde auth.js)
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../api";
@@ -11,33 +12,46 @@ function LoginForm() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
+  // Mapeo de rutas por roles, para adaptar fácilmente los nuevos roles/vistas
+  const rutasPorRol = {
+    "admin": { storageKey: "authUser", ruta: "/HomeAdmin" },
+    "cajero": { storageKey: "user", ruta: "/Home" },
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setMensaje("");
     setLoading(true);
     try {
+      // Petición al backend: /auth/login retorna user con el rol preciso desde MySQL
       const res = await api.post("/auth/login", { email, password });
       if (remember) {
         localStorage.setItem("last_email", email);
       }
       const user = res.data.user;
+      const rol = (user?.rol || "").toLowerCase().trim();
 
-      // Validación robusta del rol
-      const rol = (user?.rol || "").toLowerCase();
+      // Si existe token, lo guardamos localmente (por ejemplo para API protegidas)
+      if (res.data.token) {
+        localStorage.setItem("token", res.data.token);
+      }
 
-      if (rol === "administrador" || rol === "admin") {
-        localStorage.setItem("authUser", JSON.stringify(user));
-        navigate("/HomeAdmin");
-      } else if (rol === "cajero") {
-        localStorage.setItem("user", JSON.stringify(user));
-        navigate("/Home");
-      } else if (rol) {
-        setMensaje(`❌ Rol de usuario no reconocido: ${user?.rol}`);
+      // Buscar la ruta correspondiente según el rol
+      if (rol && rutasPorRol[rol]) {
+        // Guardamos los datos del usuario en el storage adecuado
+        localStorage.setItem(rutasPorRol[rol].storageKey, JSON.stringify(user));
+        navigate(rutasPorRol[rol].ruta);
       } else {
-        setMensaje("❌ No se pudo determinar el rol del usuario");
+        // Para roles no mapeados, puedes mostrar un error o redirigir a un dashboard genérico
+        setMensaje("❌ No se pudo determinar el rol del usuario o el acceso aún no está configurado para tu perfil.");
       }
     } catch (error) {
-      setMensaje("❌ Credenciales inválidas o error en servidor");
+      // Captura errores de login del backend
+      if (error.response?.status === 401) {
+        setMensaje(error.response.data.error || "❌ Credenciales inválidas");
+      } else {
+        setMensaje("❌ Error en servidor. Intenta nuevamente.");
+      }
       console.error(error);
     } finally {
       setLoading(false);
@@ -98,23 +112,21 @@ function LoginForm() {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                autoComplete="email"
                 required
-                className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-4 focus:ring-orange-100 focus:border-orange-400"
-                placeholder="tucorreo@dominio.com"
+                className="w-full rounded-xl border border-slate-300 px-3 py-2 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-4 focus:ring-orange-100 focus:border-orange-400"
+                placeholder="ejemplo@correo.com"
               />
             </div>
 
-            <div>
+            <div className="relative">
               <label className="block text-sm font-medium text-slate-700">
                 Contraseña
               </label>
-              <div className="mt-1 relative">
+              <div className="relative">
                 <input
                   type={showPwd ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  autoComplete="current-password"
                   required
                   className="w-full rounded-xl border border-slate-300 px-3 py-2 pr-10 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-4 focus:ring-orange-100 focus:border-orange-400"
                   placeholder="••••••••"
@@ -122,7 +134,8 @@ function LoginForm() {
                 <button
                   type="button"
                   onClick={() => setShowPwd((s) => !s)}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-700 text-xs px-2 py-1 rounded-md hover:bg-slate-100"
+                  className="absolute top-1/2 right-2 flex items-center justify-center text-slate-500 hover:text-slate-700 text-xs px-2 py-1 rounded-md hover:bg-slate-100"
+                  style={{ transform: "translateY(-50%)" }}
                   aria-label={showPwd ? "Ocultar contraseña" : "Mostrar contraseña"}
                 >
                   {showPwd ? "Ocultar" : "Mostrar"}

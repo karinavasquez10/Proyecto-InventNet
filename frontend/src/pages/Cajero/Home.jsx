@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 
 // import { useNavigate } from "react-router-dom";
 import {
@@ -25,61 +25,126 @@ import AbrirCaja from "./AbrirCaja";
 import Clientes from "./Clientes";
 import PerfilCajera from "./PerfilCajera";
 
-// Helper para obtener cloud name
-const cloudName = (
-  import.meta.env.VITE_CLOUDINARY_CLOUD_NAME ||
-  import.meta.env.CLOUDINARY_CLOUD_NAME ||
-  ""
-);
 
 const weighedCategories = ["Frutas", "Verduras", "Carnes"];
 
+// Nueva versión de useProfilePhoto siguiendo HomeAdmin.jsx
 function useProfilePhoto(userId) {
-  const [photo, setPhoto] = useState("");
-  const pollingRef = useRef();
+  const [profilePhoto, setProfilePhoto] = useState("");
+  const cloudName =
+    import.meta.env.VITE_CLOUDINARY_CLOUD_NAME ||
+    import.meta.env.CLOUDINARY_CLOUD_NAME ||
+    "";
+  const storedUser = (() => {
+    try {
+      return JSON.parse(localStorage.getItem("user") || "null");
+    } catch {
+      return null;
+    }
+  })();
 
   useEffect(() => {
+    if (!userId) {
+      setProfilePhoto("");
+      return;
+    }
+
+    if (!cloudName) {
+      setProfilePhoto("");
+      return;
+    }
+
+    // Cargar desde localStorage el ultimo profilePhoto, como fallback rápido
+    if (storedUser?.foto_url) {
+      setProfilePhoto(storedUser.foto_url);
+    } else if (storedUser?.foto_perfil) {
+      setProfilePhoto(
+        storedUser.foto_perfil.startsWith("http")
+          ? storedUser.foto_perfil
+          : `https://res.cloudinary.com/${cloudName}/image/upload/${storedUser.foto_perfil}.jpg`
+      );
+    }
+
+    // Fetch actualizado desde backend
     const fetchPhoto = async () => {
-      if (!userId) {
-        setPhoto("");
-        return;
-      }
       try {
-        const res = await fetch(`http://localhost:5000/api/perfil/${userId}?_t=${Date.now()}`);
+        const res = await fetch(
+          `http://localhost:5000/api/perfil/${userId}`
+        );
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
-        if (data?.foto_perfil && cloudName) {
-          setPhoto(`https://res.cloudinary.com/${cloudName}/image/upload/${data.foto_perfil}`);
+        // Siempre usar foto_url del backend (dinámica con versión)
+        if (data?.foto_url) {
+          setProfilePhoto(data.foto_url);
+        } else if (data?.foto_perfil) {
+          setProfilePhoto(
+            `https://res.cloudinary.com/${cloudName}/image/upload/${data.foto_perfil}.jpg`
+          );
         } else {
-          setPhoto("");
+          setProfilePhoto("");
         }
-      } catch {
-        setPhoto("");
+        // Actualizar localStorage (solo los campos relevantes)
+        localStorage.setItem(
+          "user",
+          JSON.stringify({
+            ...storedUser,
+            foto_url: data.foto_url,
+            foto_perfil: data.foto_perfil
+          })
+        );
+      } catch (err) {{err}
+        // Si falla fetch, usar fallback local
+        if (storedUser?.foto_url) setProfilePhoto(storedUser.foto_url);
+        else setProfilePhoto("");
       }
     };
 
     fetchPhoto();
-    pollingRef.current = setInterval(fetchPhoto, 15000);
 
-    return () => {
-      clearInterval(pollingRef.current);
-    };
-  }, [userId]);
+    // Escuchar evento de foto de perfil actualizada (por ejemplo, desde el modal de edición)
+    const handlePhotoUpdate = () => fetchPhoto();
+    window.addEventListener("profilePhotoUpdated", handlePhotoUpdate);
+    return () => window.removeEventListener("profilePhotoUpdated", handlePhotoUpdate);
+    // cloudName en deps garantiza que si cambia (por .env), se actualiza bien
+    // storedUser no lo ponemos para evitar bucles
+    // eslint-disable-next-line
+  }, [userId, cloudName]);
 
+  // Permite disparar refresh manual (por ejemplo, al cerrar modal de editar perfil)
   const refreshPhoto = () => {
-    if (userId) {
-      fetch(`http://localhost:5000/api/perfil/${userId}?_t=${Date.now()}`)
-        .then((r) => r.json())
-        .then((data) => {
-          if (data?.foto_perfil && cloudName) {
-            setPhoto(`https://res.cloudinary.com/${cloudName}/image/upload/${data.foto_perfil}`);
-          }
-        });
-    } else {
-      setPhoto("");
+    if (!userId) {
+      setProfilePhoto("");
+      return;
     }
+    fetch(`http://localhost:5000/api/perfil/${userId}`)
+      .then((r) => {
+        if (!r.ok) throw new Error("Fail");
+        return r.json();
+      })
+      .then((data) => {
+        if (data?.foto_url) {
+          setProfilePhoto(data.foto_url);
+          localStorage.setItem(
+            "user",
+            JSON.stringify({
+              ...storedUser,
+              foto_url: data.foto_url,
+              foto_perfil: data.foto_perfil
+            })
+          );
+        } else if (data?.foto_perfil) {
+          setProfilePhoto(
+            `https://res.cloudinary.com/${cloudName}/image/upload/${data.foto_perfil}.jpg`
+          );
+        }
+      })
+      .catch(() => {
+        if (storedUser?.foto_url) setProfilePhoto(storedUser.foto_url);
+        else setProfilePhoto("");
+      });
   };
 
-  return [photo, refreshPhoto];
+  return [profilePhoto, refreshPhoto];
 }
 
 function QuantityModal({ product, currentQty, onSave, onClose, theme }) {
@@ -166,7 +231,7 @@ function Home() {
     id: storedUser?.id,
   };
 
-  // Foto de perfil
+  // Foto de perfil (versión HomeAdmin)
   const [profilePhoto, refreshProfilePhoto] = useProfilePhoto(cajero.id);
 
   // Leer caja abierta
@@ -748,9 +813,14 @@ function Home() {
         <PerfilCajera
           onClose={() => {
             setShowPerfilCajera(false);
+            // Dispara una recarga del perfil (actualizar correctamente tras editar foto/campos)
             setTimeout(() => {
               refreshProfilePhoto();
             }, 50);
+            // También emitir evento global (para otras vistas si se utilizan)
+            setTimeout(() => {
+              window.dispatchEvent(new Event("profilePhotoUpdated"));
+            }, 100);
           }}
         />
       )}

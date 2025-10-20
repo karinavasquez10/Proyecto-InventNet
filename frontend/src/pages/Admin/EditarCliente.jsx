@@ -1,19 +1,28 @@
+// EditarCliente.jsx (versión actualizada - campo nombre único, tipo de cliente, integración con API vía prop)
 import React, { useState, useEffect } from "react";
 
 export default function EditarCliente({ cliente, onClose, onGuardar }) {
   const [formData, setFormData] = useState({
     documento: "",
     tipo: "",
-    nombres: "",
-    apellidos: "",
+    nombre: "",
     telefono: "",
     email: "",
     direccion: "",
   });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     if (cliente) {
-      setFormData({ ...cliente });
+      setFormData({
+        documento: cliente.documento || "",
+        tipo: cliente.tipo,
+        nombre: cliente.nombre || "",
+        telefono: cliente.telefono || "",
+        email: cliente.email || "",
+        direccion: cliente.direccion || "",
+      });
     }
   }, [cliente]);
 
@@ -21,9 +30,38 @@ export default function EditarCliente({ cliente, onClose, onGuardar }) {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const handleGuardar = () => {
-    onGuardar(formData);
-    onClose();
+  const handleGuardar = async () => {
+    if (!formData.nombre || !formData.documento) {
+      setError("Nombre e identificación son obligatorios");
+      return;
+    }
+    try {
+      setLoading(true);
+      setError(null);
+      const res = await fetch(`http://localhost:5000/api/clientes/${cliente.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nombre: formData.nombre,
+          identificacion: formData.documento,
+          direccion: formData.direccion,
+          telefono: formData.telefono,
+          correo: formData.email,
+          tipo: formData.tipo,
+        }),
+      });
+      if (!res.ok) {
+        const errorText = await res.text();
+        throw new Error(errorText || "Error al actualizar cliente");
+      }
+      onClose();
+      if (onGuardar) onGuardar(formData);
+    } catch (err) {
+      console.error("Error al actualizar cliente:", err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (!cliente) return null;
@@ -50,6 +88,12 @@ export default function EditarCliente({ cliente, onClose, onGuardar }) {
           <div className="mt-4 w-24 h-1 bg-gradient-to-r from-orange-400 to-pink-400 mx-auto rounded-full" />
         </div>
 
+        {error && (
+          <div className="mb-4 p-3 bg-rose-50 border border-rose-200 rounded-lg text-rose-700 text-sm">
+            {error}
+          </div>
+        )}
+
         {/* Formulario */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
           {/* Documento */}
@@ -69,43 +113,29 @@ export default function EditarCliente({ cliente, onClose, onGuardar }) {
           {/* Tipo */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">
-              Tipo de documento
+              Tipo de cliente
             </label>
             <select
               name="tipo"
-              value={formData.tipo}
+              value={formData.tipo.toLowerCase()}
               onChange={handleChange}
               className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-orange-300 focus:border-orange-400 shadow-sm transition"
             >
-              <option>Cédula de ciudadanía</option>
-              <option>NIT</option>
-              <option>Pasaporte</option>
+              <option value="persona">Persona</option>
+              <option value="empresa">Empresa</option>
+              <option value="generico">Generico</option>
             </select>
           </div>
 
-          {/* Nombres */}
-          <div>
+          {/* Nombre */}
+          <div className="sm:col-span-2">
             <label className="block text-sm font-medium text-slate-700 mb-1">
-              Nombres
+              Nombre completo
             </label>
             <input
               type="text"
-              name="nombres"
-              value={formData.nombres}
-              onChange={handleChange}
-              className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-orange-300 focus:border-orange-400 shadow-sm transition"
-            />
-          </div>
-
-          {/* Apellidos */}
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
-              Apellidos
-            </label>
-            <input
-              type="text"
-              name="apellidos"
-              value={formData.apellidos}
+              name="nombre"
+              value={formData.nombre}
               onChange={handleChange}
               className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-orange-300 focus:border-orange-400 shadow-sm transition"
             />
@@ -158,15 +188,17 @@ export default function EditarCliente({ cliente, onClose, onGuardar }) {
         <div className="flex justify-end gap-3 mt-8">
           <button
             onClick={onClose}
-            className="bg-slate-400/90 hover:bg-slate-500 text-white px-5 py-2.5 rounded-xl text-sm font-medium shadow-sm transition"
+            disabled={loading}
+            className="bg-slate-400/90 hover:bg-slate-500 text-white px-5 py-2.5 rounded-xl text-sm font-medium shadow-sm transition disabled:opacity-50"
           >
             Cancelar
           </button>
           <button
             onClick={handleGuardar}
-            className="bg-gradient-to-r from-green-500 to-emerald-600 hover:brightness-110 text-white px-6 py-2.5 rounded-xl text-sm font-semibold shadow-md transition"
+            disabled={loading}
+            className="bg-gradient-to-r from-green-500 to-emerald-600 hover:brightness-110 text-white px-6 py-2.5 rounded-xl text-sm font-semibold shadow-md transition disabled:opacity-50"
           >
-            Guardar Cambios
+            {loading ? "Guardando..." : "Guardar Cambios"}
           </button>
         </div>
       </div>

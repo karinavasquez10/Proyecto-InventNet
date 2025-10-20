@@ -13,7 +13,9 @@ api.interceptors.request.use((config) => {
       config.headers = config.headers || {};
       config.headers.Authorization = `Bearer ${token}`;
     }
-  } catch {}
+  } catch {
+    // Ignorar errores al leer el token de localStorage en entornos no-browser
+  }
   return config;
 });
 

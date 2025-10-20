@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { User, Edit2, Save, Camera, X } from "lucide-react";
 
 /* ========= Hook de sincronización global ========= */
@@ -24,12 +24,25 @@ function useSystemTheme() {
   return theme;
 }
 
+const RAW_API_URL = import.meta.env.VITE_API_URL || "";
+const API = (() => {
+  try {
+    let u = RAW_API_URL || "http://localhost:5000";
+    u = u.replace(/\/+$/, ""); // quitar slash final
+    if (!u.endsWith("/api")) u = u + "/api";
+    return u;
+  } catch {
+    return "http://localhost:5000/api";
+  }
+})();
+
 /* ========= Componente principal ========= */
 export default function PerfilCajera({ onClose }) {
-  const theme = useSystemTheme(); // 👈 Se sincroniza automáticamente
+  const theme = useSystemTheme();
   const [editing, setEditing] = useState(false);
   const [foto, setFoto] = useState("");
   const [datos, setDatos] = useState({});
+  const [imgVersion, setImgVersion] = useState(Date.now());
 
   const userId = (() => {
     try {
@@ -39,20 +52,80 @@ export default function PerfilCajera({ onClose }) {
     }
   })();
 
-  useEffect(() => {
+  const storedUser = (() => {
+    try {
+      return JSON.parse(localStorage.getItem("user") || "null");
+    } catch {
+      return null;
+    }
+  })();
+
+  const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || "";
+
+  // Mantiene el control si ya se hizo fetch
+  const fetchedProfile = useRef(false);
+
+  // Carga el perfil, siguiendo la lógica de PerfilAdmin.jsx para tomar la foto activa
+  const fetchPerfil = async () => {
+    if (fetchedProfile.current) return;
     if (!userId) return;
-    fetch(`http://localhost:5000/api/perfil/${userId}`)
-      .then((res) => res.json())
-      .then((data) => {
-        setDatos(data);
-        if (data.foto_perfil) {
-          const cloud = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || "";
-          setFoto(
-            `https://res.cloudinary.com/${cloud}/image/upload/${data.foto_perfil}`
-          );
-        }
-      });
-  }, [userId]);
+    if (!cloudName) {
+      console.error("❌ VITE_CLOUDINARY_CLOUD_NAME no configurado en .env frontend");
+      return;
+    }
+    fetchedProfile.current = true;
+    try {
+      const response = await fetch(`${API}/perfil/${userId}`);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const data = await response.json();
+
+      setDatos(data);
+
+      // Si backend da una URL absoluta, úsala, sino arma desde cloudinary
+      if (data?.foto_url) {
+        setFoto(data.foto_url);
+      } else if (data?.foto_perfil) {
+        setFoto(`https://res.cloudinary.com/${cloudName}/image/upload/${data.foto_perfil}.jpg`);
+      } else {
+        setFoto("");
+      }
+
+      // Actualiza localStorage igual que en admin para sincronía
+      localStorage.setItem(
+        "user",
+        JSON.stringify({
+          ...storedUser,
+          ...data, // Sobrescribe con datos del backend
+          foto_url: data.foto_url,
+          foto_perfil: data.foto_perfil,
+        })
+      );
+
+      setImgVersion(Date.now());
+    } catch (error) {
+      console.error("Error fetching profile:", error);
+      // fallback a localStorage si fetch falla, igual que admin
+      if (storedUser?.foto_url) {
+        setFoto(storedUser.foto_url);
+        setDatos(storedUser);
+        setImgVersion(Date.now());
+      }
+    }
+  };
+
+  // Carga inicial y escucha para actualización por eventos globales:
+  useEffect(() => {
+    fetchedProfile.current = false;
+    fetchPerfil();
+
+    const handlePhotoUpdate = () => {
+      fetchedProfile.current = false;
+      fetchPerfil();
+    };
+    window.addEventListener("profilePhotoUpdated", handlePhotoUpdate);
+    return () => window.removeEventListener("profilePhotoUpdated", handlePhotoUpdate);
+  // Solo userId y cloudName como deps
+  }, [userId, cloudName]);
 
   const handleChange = (e) =>
     setDatos({ ...datos, [e.target.name]: e.target.value });
@@ -63,22 +136,60 @@ export default function PerfilCajera({ onClose }) {
   };
 
   const handleGuardar = async () => {
+    if (!userId) {
+      alert("❌ Error: No se encontró el ID de usuario");
+      return;
+    }
     const formData = new FormData();
     Object.keys(datos).forEach((k) => formData.append(k, datos[k]));
     if (foto instanceof File) formData.append("foto", foto);
 
-    const res = await fetch(`http://localhost:5000/api/perfil/${userId}`, {
+    const res = await fetch(`${API}/perfil/${userId}`, {
       method: "PUT",
       body: formData,
     });
     const result = await res.json();
-    if (result.message) {
-      alert("✅ Perfil actualizado correctamente");
+    if (result.message || result.foto_url) {
+      // Actualiza localStorage y el estado, igual que admin
+      const nuevoPublicId = result.foto || datos.foto_perfil;
+      let nuevaFotoUrl = result.foto_url || datos.foto_url;
+      if (!nuevaFotoUrl && nuevoPublicId)
+        nuevaFotoUrl = `https://res.cloudinary.com/${cloudName}/image/upload/${nuevoPublicId}.jpg`;
+
+      const prevUser = JSON.parse(localStorage.getItem("user") || "{}");
+      localStorage.setItem(
+        "user",
+        JSON.stringify({
+          ...prevUser,
+          foto_perfil: nuevoPublicId,
+          foto_url: nuevaFotoUrl,
+          nombre: datos.nombre,
+          cargo: datos.cargo,
+        })
+      );
+
+      // Emite evento para refrescar en otras pestañas/vistas
+      window.dispatchEvent(new Event("profilePhotoUpdated"));
+
+      // El preview lo mantendrá fetchPerfil por el evento
+      setFoto(foto instanceof File ? foto : nuevaFotoUrl);
+      setImgVersion(Date.now());
       setEditing(false);
+      alert("✅ Perfil actualizado correctamente");
     }
   };
 
   const generoOptions = ["femenino", "masculino", "otro"];
+
+  // Igual que admin: determina src de la imagen respetando versiones (para forzar recarga visual)
+  const getImgSrc = () => {
+    if (foto instanceof File) {
+      return URL.createObjectURL(foto);
+    } else if (foto) {
+      return `${foto}?v=${imgVersion}`;
+    }
+    return null;
+  };
 
   return (
     <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-50 p-3">
@@ -114,11 +225,17 @@ export default function PerfilCajera({ onClose }) {
           {/* FOTO */}
           <div className="flex flex-col items-center">
             <div className="relative">
-              {foto ? (
+              {getImgSrc() ? (
                 <img
-                  src={foto instanceof File ? URL.createObjectURL(foto) : foto}
+                  src={getImgSrc()}
                   alt="Perfil"
                   className="w-28 h-28 rounded-full object-cover border-4 border-orange-200 dark:border-slate-600"
+                  key={imgVersion}
+                  onLoad={() => null}
+                  onError={e => {
+                    e.target.style.display = 'none';
+                    if (e.target.nextSibling) e.target.nextSibling.style.display = 'flex';
+                  }}
                 />
               ) : (
                 <div className="w-28 h-28 rounded-full bg-gradient-to-r from-orange-500 to-fuchsia-500 flex items-center justify-center text-white text-3xl font-bold border-4 border-orange-200 dark:border-slate-600">
