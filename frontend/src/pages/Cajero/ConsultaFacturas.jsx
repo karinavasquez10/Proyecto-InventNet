@@ -215,27 +215,60 @@ function ConsultaFacturasBody({ onClose }) {
     });
 
     /* ==================== FUNCIONES: Vista previa y Reimpresión ==================== */
-const openFacturaPreview = async (factura) => {
+const openFacturaPreview = async (factura, modo = "print") => {
   try {
-    // 1️⃣ Obtener los datos completos de la venta desde el backend
+    // 1️⃣ Obtener datos del backend
     const res = await fetch(`${API_URL}/ventas/${factura.id_venta}`);
     const detalle = await res.json();
+
+    const venta = detalle.venta || detalle || {};
+    const items = detalle.detalle || detalle.items || [];
+
+    const recibidoReal =
+      venta.efectivo_recibido ??
+      venta.valor_recibido ??
+      venta.monto_recibido ??
+      detalle.recibido ??
+      factura.recibido ??
+      factura.total ??
+      0;
+
+    const cambioReal =
+      venta.cambio_devuelto ??
+      venta.vuelto ??
+      venta.cambio ??
+      detalle.cambio ??
+      factura.cambio ??
+      0;
 
     const datosFactura = {
       numero: `F-${String(factura.id_venta).padStart(6, "0")}`,
       fecha: new Date(factura.fecha).toLocaleString("es-CO"),
-      cliente: detalle.cliente?.nombre || "Cliente General",
-      cajero: factura.nombre_usuario,
-      metodoPago: factura.metodo_pago,
-      subtotal: factura.subtotal,
-      descuento: factura.descuento,
-      iva: (factura.impuesto / factura.subtotal) || 0.19,
-      recibido: detalle.recibido || factura.total,
-      cambio: detalle.cambio || 0,
-      productos: detalle.items || [],
+      cliente: venta.cliente?.nombre || venta.nombre_cliente || "Cliente General",
+      cajero: factura.nombre_usuario || venta.nombre_usuario,
+      metodoPago: factura.metodo_pago || venta.metodo_pago,
+      subtotal: venta.subtotal || factura.subtotal || 0,
+      descuento: venta.descuento || factura.descuento || 0,
+      iva: venta.impuesto || factura.impuesto || 0.19,
+      total: venta.total || factura.total || 0,
+      recibido: recibidoReal,
+      cambio: cambioReal,
+      productos: items.map((p) => ({
+        id: p.id_producto || p.id || Math.random(),
+        nombre: p.nombre || p.nombre_producto || "Producto",
+        cantidad: p.cantidad || 1,
+        precio: p.precio_unitario || p.precio || 0,
+      })),
+      modoVer: modo === "ver", // 👈 clave para ocultar botón de imprimir
     };
 
-    // 2️⃣ Render temporal en DOM oculto
+    // 🧩 Si es solo vista previa, mostramos el modal directamente
+    if (modo === "ver") {
+      setFacturaDatos(datosFactura);
+      return;
+    }
+
+    // 🧩 Si es impresión, generar vista como antes
     setFacturaDatos(datosFactura);
     await new Promise((r) => setTimeout(r, 500));
 
@@ -245,7 +278,6 @@ const openFacturaPreview = async (factura) => {
       return;
     }
 
-    // 3️⃣ Clonar y abrir en nueva pestaña
     const facturaHTML = facturaContainer.outerHTML;
     const printWindow = window.open("", "_blank", "width=600,height=800");
     printWindow.document.write(`
@@ -267,8 +299,10 @@ const openFacturaPreview = async (factura) => {
   }
 };
 
-const handleVerFactura = (factura) => openFacturaPreview(factura);
-const handleReimprimirFactura = (factura) => openFacturaPreview(factura);
+
+const handleVerFactura = (factura) => openFacturaPreview(factura, "ver");
+const handleReimprimirFactura = (factura) => openFacturaPreview(factura, "print");
+
 
 
   if (loading) {
@@ -383,6 +417,16 @@ const handleReimprimirFactura = (factura) => openFacturaPreview(factura);
               : "bg-white border-orange-200"
           }`}
         >
+         {facturaDatos && (
+          <ModeloFactura
+            open={true}
+            onClose={() => setFacturaDatos(null)}
+            datos={facturaDatos}
+          />
+        )}
+
+
+
           <div className="flex justify-between items-center mb-4">
             <h3 className="font-semibold text-lg">Lista de Facturas</h3>
             <PrintButton onClick={() => window.print()} />

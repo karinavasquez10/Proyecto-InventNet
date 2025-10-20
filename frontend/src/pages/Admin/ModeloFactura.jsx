@@ -27,28 +27,25 @@ export default function ModeloFactura({ open, onClose, datos = {} }) {
   const theme = useSystemTheme();
   const facturaRef = useRef(null);
 
-  const {
-    numero = "F-000231",
-    fecha = new Date().toLocaleString("es-CO"),
-    cliente = "Cliente General",
-    cajero = "Juliana Hoyos",
-    metodoPago = "Efectivo",
-    subtotal = 69400,
-    descuento = 0,
-    iva = 0.19,
-    recibido = 70000,
-    cambio = 600,
-    productos = [
-      { id: 1, nombre: "Arroz Diana 1Kg", cantidad: 2, precio: 4200 },
-      { id: 2, nombre: "Aceite Premier 1000ml", cantidad: 1, precio: 9800 },
-      { id: 3, nombre: "Pan Bimbo Familiar", cantidad: 1, precio: 7500 },
-      { id: 4, nombre: "Gaseosa Colombiana 1.5L", cantidad: 1, precio: 5600 },
-      { id: 5, nombre: "Huevos Kikes x30", cantidad: 1, precio: 21500 },
-    ],
-  } = datos;
+ const {
+  numero = "F-000231",
+  fecha = new Date().toLocaleString("es-CO"),
+  cliente = "Cliente General",
+  cajero = "Juliana Hoyos",
+  metodoPago = "Efectivo",
+  subtotal = 0,
+  descuento = 0,
+  iva = 0.19,
+  total = 0,
+  recibido = 0,
+  cambio = 0,
+  productos = [],
+} = datos;
 
-  const totalIva = subtotal * iva;
-  const totalFinal = subtotal - descuento + totalIva;
+
+const totalIva = iva < 1 ? subtotal * iva : iva;
+const totalFinal = total || subtotal - descuento + totalIva;
+
 
   const money = (n) =>
     (Number(n) || 0).toLocaleString("es-CO", {
@@ -209,14 +206,18 @@ export default function ModeloFactura({ open, onClose, datos = {} }) {
         </div>
 
         {/* ======= Botón imprimir ======= */}
-        <div className="absolute top-2 right-3">
-          <button
-            onClick={handlePrint}
-            className="flex items-center gap-1 text-xs px-2 py-1 rounded-md bg-gradient-to-r from-orange-500 to-fuchsia-500 text-white hover:brightness-110 transition"
-          >
-            <Printer size={14} /> Imprimir
-          </button>
-        </div>
+ 
+        {!datos.modoVer && (
+          <div className="absolute top-2 right-3">
+            <button
+              onClick={handlePrint}
+              className="flex items-center gap-1 text-xs px-2 py-1 rounded-md bg-gradient-to-r from-orange-500 to-fuchsia-500 text-white hover:brightness-110 transition"
+            >
+              <Printer size={14} /> Imprimir
+            </button>
+          </div>
+        )}
+
       </div>
     </div>
   );
