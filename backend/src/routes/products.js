@@ -191,4 +191,75 @@ router.post('/update-stocks', async (req, res) => {
   }
 });
 
+// POST /api/products/productos - Crear nuevo producto
+router.post('/productos', async (req, res) => {
+  const { nombre, descripcion, id_categoria, id_unidad, precio_compra, precio_venta, stock_actual, stock_minimo, stock_maximo, estado } = req.body;
+  
+  // Validaciones básicas
+  if (!nombre || !id_categoria || !id_unidad) {
+    return res.status(400).json({ message: 'Nombre, categoría y unidad son obligatorios' });
+  }
+  if (isNaN(precio_compra) || isNaN(precio_venta) || precio_compra < 0 || precio_venta < 0) {
+    return res.status(400).json({ message: 'Precios deben ser números positivos' });
+  }
+
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+
+    // Verificar existencia de categoría y unidad (activas)
+    const [catCheck] = await connection.query(
+      'SELECT id_categoria FROM categorias WHERE id_categoria = ? AND is_deleted = 0',
+      [id_categoria]
+    );
+    const [unitCheck] = await connection.query(
+      'SELECT id_unidad FROM unidades_medida WHERE id_unidad = ? AND is_deleted = 0',
+      [id_unidad]
+    );
+    if (catCheck.length === 0) {
+      return res.status(400).json({ message: 'Categoría inválida o eliminada' });
+    }
+    if (unitCheck.length === 0) {
+      return res.status(400).json({ message: 'Unidad de medida inválida o eliminada' });
+    }
+
+    const [result] = await connection.query(`
+      INSERT INTO productos (
+        nombre, descripcion, id_categoria, id_unidad, 
+        precio_compra, precio_venta, stock_actual, 
+        stock_minimo, stock_maximo, estado
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `, [
+      nombre,
+      descripcion || null,
+      parseInt(id_categoria),
+      parseInt(id_unidad),
+      parseFloat(precio_compra),
+      parseFloat(precio_venta),
+      parseFloat(stock_actual || 0),
+      parseFloat(stock_minimo || 0),
+      parseFloat(stock_maximo || 0),
+      estado ? 1 : 0
+    ]);
+
+    await connection.commit();
+    res.status(201).json({ 
+      message: 'Producto creado exitosamente', 
+      id_producto: result.insertId 
+    });
+  } catch (error) {
+    await connection.rollback();
+    console.error('Error al crear producto:', error);
+    if (error.code === 'ER_NO_REFERENCED_ROW_2' || error.code === 'FOREIGN KEY') {
+      res.status(400).json({ message: 'Referencia inválida (categoría o unidad)' });
+    } else if (error.code === 'ER_DUP_ENTRY') {
+      res.status(409).json({ message: 'Ya existe un producto con ese nombre' });
+    } else {
+      res.status(500).json({ message: 'Error al crear producto' });
+    }
+  } finally {
+    connection.release();
+  }
+});
+
 export default router;

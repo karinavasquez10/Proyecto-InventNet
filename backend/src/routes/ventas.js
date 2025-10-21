@@ -10,9 +10,10 @@ router.post('/', async (req, res) => {
         await connection.beginTransaction();
 
         const { 
+            fecha, // opcional
             id_cliente, 
             id_usuario, 
-            id_caja, 
+            id_caja, // Opcional: permitir null
             subtotal, 
             impuesto, 
             total, 
@@ -21,21 +22,47 @@ router.post('/', async (req, res) => {
             items 
         } = req.body;
 
-        // Validaciones básicas
-        if (!id_usuario || !id_caja || !items || items.length === 0) {
+        console.log(`Procesando venta: id_caja=${id_caja}, items=${items?.length || 0}`); // Debug log
+
+        // Validaciones básicas: id_caja opcional
+        if (!id_usuario || !items || items.length === 0 || total < 0) {
             await connection.rollback();
-            return res.status(400).send('Faltan datos requeridos: id_usuario, id_caja, items');
+            return res.status(400).send('Faltan datos requeridos: id_usuario, items, o total inválido');
+        }
+        for (const item of items) {
+            if (!item.id_producto || item.cantidad <= 0 || item.precio_unitario <= 0) {
+                await connection.rollback();
+                return res.status(400).send('Items inválidos: cantidad y precio deben ser >0');
+            }
         }
 
-        // 1. Insertar en tabla ventas (sin fecha, usa DEFAULT CURRENT_TIMESTAMP)
+        // Si id_caja proporcionado, validar existencia
+        if (id_caja) {
+            const [cajaCheck] = await connection.query('SELECT id_caja FROM caja WHERE id_caja = ?', [id_caja]);
+            if (cajaCheck.length === 0) {
+                await connection.rollback();
+                return res.status(400).send(`Caja con ID ${id_caja} no existe.`);
+            }
+        }
+
+        // Verificar coherencia de total
+        const sumDescuentos = items.reduce((acc, item) => acc + (item.descuento || 0), 0);
+        const totalCalculado = subtotal + impuesto - sumDescuentos;
+        const fechaToUse = fecha || null;
+        if (Math.abs(total - totalCalculado) > 0.01) {
+            console.warn(`Total ajustado: recibido ${total}, calculado ${totalCalculado}`);
+        }
+
+        // 1. Insertar en tabla ventas (con fecha opcional, id_caja null ok)
         const [ventaResult] = await connection.query(
             `INSERT INTO ventas 
-            (id_cliente, id_usuario, id_caja, subtotal, impuesto, total, metodo_pago, observaciones) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            (id_cliente, id_usuario, id_caja, fecha, subtotal, impuesto, total, metodo_pago, observaciones) 
+            VALUES (?, ?, ?, COALESCE(?, CURRENT_TIMESTAMP), ?, ?, ?, ?, ?)` ,
             [
                 id_cliente || null,
                 id_usuario,
-                id_caja,
+                id_caja || null, // Permitir null
+                fechaToUse,
                 subtotal,
                 impuesto,
                 total,
@@ -45,19 +72,10 @@ router.post('/', async (req, res) => {
         );
 
         const id_venta = ventaResult.insertId;
+        console.log(`Venta insertada: ID ${id_venta}`);
 
-        // 2. Insertar detalles de venta y actualizar stock
+        // 2. Insertar detalles de venta (siempre)
         for (const item of items) {
-            // Verificar stock suficiente
-            const [stockCheck] = await connection.query(
-                `SELECT stock_actual FROM productos WHERE id_producto = ?`,
-                [item.id_producto]
-            );
-            if (stockCheck.length === 0 || stockCheck[0].stock_actual < item.cantidad) {
-                await connection.rollback();
-                return res.status(400).send(`Stock insuficiente para producto ID ${item.id_producto}`);
-            }
-
             await connection.query(
                 `INSERT INTO detalle_ventas 
                 (id_venta, id_producto, cantidad, precio_unitario, descuento) 
@@ -70,42 +88,70 @@ router.post('/', async (req, res) => {
                     item.descuento || 0
                 ]
             );
+            console.log(`Detalle insertado para producto ${item.id_producto}`);
+        }
 
-            // Actualizar stock del producto
+        // 3. Actualización de stock (siempre, sin verificación estricta de cantidad)
+        for (const item of items) {
+            // Solo verificar existencia del producto
+            const [stockCheck] = await connection.query(
+                `SELECT stock_actual FROM productos WHERE id_producto = ?`,
+                [item.id_producto]
+            );
+            if (stockCheck.length === 0) {
+                await connection.rollback();
+                return res.status(400).send(`Producto ID ${item.id_producto} no encontrado.`);
+            }
+
+            // Log stock actual para debug
+            const stockAnterior = stockCheck[0].stock_actual;
+            if (stockAnterior < item.cantidad) {
+                console.warn(`Stock insuficiente para producto ${item.id_producto}: anterior ${stockAnterior}, vendiendo ${item.cantidad} (stock puede ser negativo)`);
+            }
+
+            // Siempre actualizar stock
             await connection.query(
                 `UPDATE productos 
                 SET stock_actual = stock_actual - ? 
                 WHERE id_producto = ?`,
                 [item.cantidad, item.id_producto]
             );
+            console.log(`Stock actualizado para producto ${item.id_producto}: -${item.cantidad} (nuevo: ${stockAnterior - item.cantidad})`);
         }
 
-        // 3. Actualizar total_ventas en la caja
-        await connection.query(
-            `UPDATE caja 
-            SET total_ventas = COALESCE(total_ventas, 0) + ? 
-            WHERE id_caja = ?`,
-            [total, id_caja]
-        );
+        // 4. Solo si hay id_caja: Actualizar total_ventas en la caja
+        if (id_caja) {
+            await connection.query(
+                `UPDATE caja 
+                SET total_ventas = COALESCE(total_ventas, 0) + ? 
+                WHERE id_caja = ?`,
+                [total, id_caja]
+            );
+            console.log(`Caja ${id_caja} actualizada: +${total} en total_ventas`);
 
-        // 4. Registrar movimiento 'ingreso' por la venta
-        await connection.query(
-            `INSERT INTO movimientos_caja 
-            (id_caja, tipo, descripcion, monto) 
-            VALUES (?, 'ingreso', ?, ?)`,
-            [
-                id_caja,
-                `Venta ID: ${id_venta}`,
-                total
-            ]
-        );
+            // 5. Solo si hay id_caja: Registrar movimiento
+            await connection.query(
+                `INSERT INTO movimientos_caja 
+                (id_caja, tipo, descripcion, monto, fecha) 
+                VALUES (?, 'ingreso', ?, ?, COALESCE(?, CURRENT_TIMESTAMP))`,
+                [
+                    id_caja,
+                    `Venta ID: ${id_venta}`,
+                    total,
+                    fechaToUse
+                ]
+            );
+            console.log(`Movimiento registrado en caja ${id_caja}`);
+        } else {
+            console.log(`Venta ${id_venta} registrada manualmente sin caja asociada.`);
+        }
 
         await connection.commit();
 
         res.status(201).json({
             success: true,
             id_venta,
-            message: 'Venta y movimiento registrados exitosamente'
+            message: `Venta registrada exitosamente${!id_caja ? ' (manual, sin caja)' : ''}`
         });
 
     } catch (error) {

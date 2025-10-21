@@ -58,6 +58,35 @@ function Spinner({ label = "Cargando..." }) {
   );
 }
 
+// FechaHoraActual: muestra la fecha y la hora, pero SOLO se renderiza a sí misma cada segundo, no el padre
+function FechaHoraActual() {
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  useEffect(() => {
+    const interval = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(interval);
+  }, []);
+  return (
+    <div className="hidden sm:flex flex-col items-end mr-4 text-right">
+      <span className="text-xs text-slate-500">
+        {currentTime.toLocaleDateString("es-CO", {
+          weekday: "long",
+          day: "2-digit",
+          month: "long",
+          year: "numeric",
+        })}
+      </span>
+      <span className="text-sm font-semibold text-slate-700">
+        {currentTime.toLocaleTimeString("es-CO", {
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+        })}
+      </span>
+    </div>
+  );
+}
+
 export default function HomeAdmin() {
   const [openMenu, setOpenMenu] = useState(null);
   const [profilePhoto, setProfilePhoto] = useState("");
@@ -65,14 +94,7 @@ export default function HomeAdmin() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  // Estado para la fecha y hora actual
-const [currentTime, setCurrentTime] = useState(new Date());
-
-// Actualiza la hora cada segundo
-useEffect(() => {
-  const interval = setInterval(() => setCurrentTime(new Date()), 1000);
-  return () => clearInterval(interval);
-}, []);
+  // (Removido el estado y useEffect para currentTime del padre)
 
   const handleLogout = () => {
     localStorage.removeItem("authUser");
@@ -97,66 +119,66 @@ useEffect(() => {
   const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || "";
 
   useEffect(() => {
-  const userId = admin.id;
-  if (!userId) return;
+    const userId = admin.id;
+    if (!userId) return;
 
-  const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || "";
-  if (!cloudName) {
-    console.error("❌ VITE_CLOUDINARY_CLOUD_NAME no configurado en .env frontend");
-    setProfilePhoto(""); // Placeholder vacío
-    return;
-  }
-
-  // Fallback inicial desde localStorage (prioridad a foto_url)
-  if (storedUser?.foto_url) {
-    setProfilePhoto(storedUser.foto_url);
-  } else if (storedUser?.foto_perfil) {
-    setProfilePhoto(
-      storedUser.foto_perfil.startsWith("http")
-        ? storedUser.foto_perfil
-        : `https://res.cloudinary.com/${cloudName}/image/upload/${storedUser.foto_perfil}.jpg`
-    );
-  }
-  
-  // Fetch para versión actualizada
-  const fetchPhoto = async () => {
-    try {
-      const response = await fetch(`${API}/perfil/${userId}`);
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const data = await response.json();
-      
-      // Siempre usar foto_url del backend (dinámica con versión)
-      if (data?.foto_url) {
-        setProfilePhoto(data.foto_url);
-      } else if (data?.foto_perfil) {
-        setProfilePhoto(`https://res.cloudinary.com/${cloudName}/image/upload/${data.foto_perfil}.jpg`);
-      } else {
-        setProfilePhoto("");
-      }
-      
-      // Actualizar localStorage
-      localStorage.setItem(
-        "authUser",
-        JSON.stringify({ 
-          ...storedUser, 
-          foto_url: data.foto_url,
-          foto_perfil: data.foto_perfil 
-        })
-      );
-    } catch (error) {
-      console.error("Error fetching profile photo:", error);
-      // Fallback a local si fetch falla
-      if (storedUser?.foto_url) setProfilePhoto(storedUser.foto_url);
+    const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || "";
+    if (!cloudName) {
+      console.error("❌ VITE_CLOUDINARY_CLOUD_NAME no configurado en .env frontend");
+      setProfilePhoto(""); // Placeholder vacío
+      return;
     }
-  };
 
-  fetchPhoto();
+    // Fallback inicial desde localStorage (prioridad a foto_url)
+    if (storedUser?.foto_url) {
+      setProfilePhoto(storedUser.foto_url);
+    } else if (storedUser?.foto_perfil) {
+      setProfilePhoto(
+        storedUser.foto_perfil.startsWith("http")
+          ? storedUser.foto_perfil
+          : `https://res.cloudinary.com/${cloudName}/image/upload/${storedUser.foto_perfil}.jpg`
+      );
+    }
 
-  const handlePhotoUpdate = () => fetchPhoto();
-  window.addEventListener("profilePhotoUpdated", handlePhotoUpdate);
-  return () => window.removeEventListener("profilePhotoUpdated", handlePhotoUpdate);
-}, [admin.id, storedUser, cloudName]);
-  
+    // Fetch para versión actualizada
+    const fetchPhoto = async () => {
+      try {
+        const response = await fetch(`${API}/perfil/${userId}`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+
+        // Siempre usar foto_url del backend (dinámica con versión)
+        if (data?.foto_url) {
+          setProfilePhoto(data.foto_url);
+        } else if (data?.foto_perfil) {
+          setProfilePhoto(`https://res.cloudinary.com/${cloudName}/image/upload/${data.foto_perfil}.jpg`);
+        } else {
+          setProfilePhoto("");
+        }
+
+        // Actualizar localStorage
+        localStorage.setItem(
+          "authUser",
+          JSON.stringify({
+            ...storedUser,
+            foto_url: data.foto_url,
+            foto_perfil: data.foto_perfil
+          })
+        );
+      } catch (error) {
+        console.error("Error fetching profile photo:", error);
+        // Fallback a local si fetch falla
+        if (storedUser?.foto_url) setProfilePhoto(storedUser.foto_url);
+      }
+    };
+
+    fetchPhoto();
+
+    const handlePhotoUpdate = () => fetchPhoto();
+    window.addEventListener("profilePhotoUpdated", handlePhotoUpdate);
+    return () => window.removeEventListener("profilePhotoUpdated", handlePhotoUpdate);
+  }, [admin.id, storedUser, cloudName]);
+
   const menuItems = [
     {
       label: "Productos",
@@ -332,25 +354,8 @@ useEffect(() => {
                 <div className="text-xs text-slate-500">{admin.rol}</div>
               </div>
             </div>
-          {/* Fecha y hora en tiempo real */}
-          <div className="hidden sm:flex flex-col items-end mr-4 text-right">
-            <span className="text-xs text-slate-500">
-              {currentTime.toLocaleDateString("es-CO", {
-                weekday: "long",
-                day: "2-digit",
-                month: "long",
-                year: "numeric",
-              })}
-            </span>
-            <span className="text-sm font-semibold text-slate-700">
-              {currentTime.toLocaleTimeString("es-CO", {
-                hour: "2-digit",
-                minute: "2-digit",
-                second: "2-digit",
-              })}
-            </span>
-          </div>
-
+            {/* Fecha y hora en tiempo real: solo lo refresca FechaHoraActual */}
+            <FechaHoraActual />
             <div className="flex items-center gap-3 relative">
               <Link
                 to="/HomeAdmin"

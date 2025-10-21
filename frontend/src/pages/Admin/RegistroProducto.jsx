@@ -1,152 +1,248 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   PackagePlus,
-  UploadCloud,
-  Layers,
   Tag,
   CheckCircle2,
-  Trash2,
   ArchiveX,
+  Search,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 
+// Asumiendo backend en puerto 5000; ajusta si es diferente (ej: 3001)
+const API_BASE_URL = 'http://localhost:5000';
+
 export default function RegistroProductos() {
-  const [preview, setPreview] = useState(null);
   const [activo, setActivo] = useState(true);
   const [productos, setProductos] = useState([]);
+  const [categorias, setCategorias] = useState([]);
+  const [unidades, setUnidades] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortOrder, setSortOrder] = useState("asc");
+  const [currentPage, setCurrentPage] = useState(0);
+  const itemsPerPage = 10;
 
   const [formData, setFormData] = useState({
-    tipo: "",
-    codigo: "",
     nombre: "",
-    precioCompra: "",
-    precioVenta: "",
-    categoria: "",
-    subcategoria: "",
-    observaciones: "",
+    descripcion: "",
+    precio_compra: "",
+    precio_venta: "",
+    id_categoria: "",
+    id_unidad: "",
+    stock_actual: "",
+    stock_minimo: "",
+    stock_maximo: "",
   });
 
-  const handleImageChange = (e) => {
-    const file = e.target.files[0];
-    if (file) setPreview(URL.createObjectURL(file));
+  // Función helper para fetch con URLs absolutas y mejor manejo de errores
+  const fetchWithErrorHandling = async (endpoint, setter) => {
+    const url = `${API_BASE_URL}${endpoint}`;
+    try {
+      const response = await fetch(url);
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`Error en ${url}: Status ${response.status}`, errorText.substring(0, 200));
+        throw new Error(`Error ${response.status}: Verifica que el backend esté corriendo en puerto 5000 y las rutas montadas correctamente.`);
+      }
+      const data = await response.json();
+      setter(data);
+    } catch (err) {
+      console.error(`Error al cargar desde ${url}:`, err);
+      setError(err.message);
+    }
   };
+
+  // Cargar datos iniciales
+  useEffect(() => {
+    setLoading(true);
+    setError(null); // Reset error
+    fetchWithErrorHandling('/api/products/productos', setProductos);
+    fetchWithErrorHandling('/api/categorias', setCategorias);
+    fetchWithErrorHandling('/api/unidadesMedida', setUnidades); // Corregido: ruta como /api/unidadesMedida según tu index.js
+    setLoading(false);
+  }, []);
 
   const handleChange = (key, value) => {
     setFormData((prev) => ({ ...prev, [key]: value }));
   };
 
-  const handleSubmit = () => {
-    if (!formData.nombre || !formData.codigo) {
-      alert("Por favor completa el código y el nombre del producto.");
+  const handleSubmit = async () => {
+    // Validaciones frontend reforzadas para todos los campos obligatorios
+    if (!formData.nombre.trim()) {
+      alert("El nombre del producto es obligatorio.");
+      return;
+    }
+    if (!formData.id_categoria) {
+      alert("Selecciona una categoría.");
+      return;
+    }
+    if (!formData.id_unidad) {
+      alert("Selecciona una unidad de medida.");
+      return;
+    }
+    if (
+      formData.precio_compra === "" ||
+      isNaN(formData.precio_compra) ||
+      parseFloat(formData.precio_compra) < 0
+    ) {
+      alert("El precio de compra debe ser un número positivo.");
+      return;
+    }
+    if (
+      formData.precio_venta === "" ||
+      isNaN(formData.precio_venta) ||
+      parseFloat(formData.precio_venta) < 0
+    ) {
+      alert("El precio de venta debe ser un número positivo.");
+      return;
+    }
+    if (
+      formData.stock_actual === "" ||
+      isNaN(formData.stock_actual) ||
+      parseFloat(formData.stock_actual) < 0
+    ) {
+      alert("El stock actual es obligatorio y debe ser un número positivo.");
+      return;
+    }
+    if (
+      formData.stock_minimo === "" ||
+      isNaN(formData.stock_minimo) ||
+      parseFloat(formData.stock_minimo) < 0
+    ) {
+      alert("El stock mínimo es obligatorio y debe ser un número positivo.");
+      return;
+    }
+    if (
+      formData.stock_maximo === "" ||
+      isNaN(formData.stock_maximo) ||
+      parseFloat(formData.stock_maximo) < 0
+    ) {
+      alert("El stock máximo es obligatorio y debe ser un número positivo.");
       return;
     }
 
-    const nuevoProducto = {
-      ...formData,
-      activo,
-      imagen: preview,
-      id: Date.now(),
-    };
+    try {
+      const nuevoProducto = {
+        nombre: formData.nombre.trim(),
+        descripcion: formData.descripcion.trim() || null,
+        id_categoria: parseInt(formData.id_categoria),
+        id_unidad: parseInt(formData.id_unidad),
+        precio_compra: parseFloat(formData.precio_compra),
+        precio_venta: parseFloat(formData.precio_venta),
+        stock_actual: parseFloat(formData.stock_actual),
+        stock_minimo: parseFloat(formData.stock_minimo),
+        stock_maximo: parseFloat(formData.stock_maximo),
+        estado: activo ? 1 : 0,
+      };
 
-    setProductos([...productos, nuevoProducto]);
-    setFormData({
-      tipo: "",
-      codigo: "",
-      nombre: "",
-      precioCompra: "",
-      precioVenta: "",
-      categoria: "",
-      subcategoria: "",
-      observaciones: "",
-    });
-    setPreview(null);
-    setActivo(true);
+      const response = await fetch(`${API_BASE_URL}/api/products/productos`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(nuevoProducto),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'Error desconocido' }));
+        throw new Error(errorData.message || `Error ${response.status}`);
+      }
+
+      // Reset form
+      setFormData({
+        nombre: "",
+        descripcion: "",
+        precio_compra: "",
+        precio_venta: "",
+        id_categoria: "",
+        id_unidad: "",
+        stock_actual: "",
+        stock_minimo: "",
+        stock_maximo: "",
+      });
+      setActivo(true);
+      // Recargar productos
+      fetchWithErrorHandling('/api/products/productos', setProductos);
+      alert('Producto registrado exitosamente.');
+    } catch (error) {
+      console.error('Error en el envío:', error);
+      alert(`Error al registrar el producto: ${error.message}`);
+    }
   };
 
-  const handleEliminar = (id) => {
-    setProductos(productos.filter((p) => p.id !== id));
+  // Filtrado y ordenamiento
+  const filteredProducts = productos.filter((p) =>
+    p.nombre.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const sortedProducts = [...filteredProducts].sort((a, b) => {
+    const nameA = a.nombre.toLowerCase();
+    const nameB = b.nombre.toLowerCase();
+    return sortOrder === 'asc' ? nameA.localeCompare(nameB) : nameB.localeCompare(nameA);
+  });
+
+  const totalPages = Math.ceil(sortedProducts.length / itemsPerPage);
+  const paginatedProducts = sortedProducts.slice(
+    currentPage * itemsPerPage,
+    (currentPage + 1) * itemsPerPage
+  );
+
+  const handlePageChange = (newPage) => {
+    if (newPage >= 0 && newPage < totalPages) {
+      setCurrentPage(newPage);
+    }
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-sky-50 px-6 sm:px-12 py-10 rounded-xl flex items-center justify-center">
+        <p className="text-slate-600">Cargando productos...</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-sky-50 px-6 sm:px-12 py-10 rounded-xl">
-      {/* ===== Encabezado ===== */}
-      <div className="flex items-center gap-3 mb-8">
-        <div className="bg-gradient-to-r from-emerald-500 to-sky-500 p-2.5 rounded-lg shadow-md text-white">
-          <PackagePlus size={22} />
-        </div>
-        <h1 className="text-3xl font-bold text-slate-800 tracking-tight">
-          Registro de Productos
-        </h1>
-      </div>
-
-      {/* ===== Formulario ===== */}
-      <div className="bg-white/90 border border-emerald-100 rounded-2xl shadow-md p-8 mb-10">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-10">
-          {/* Imagen del producto */}
-          <div className="flex flex-col items-center justify-center border-2 border-dashed border-slate-300 rounded-xl p-6 hover:border-sky-400 hover:bg-slate-50 transition">
-            {preview ? (
-              <img
-                src={preview}
-                alt="Vista previa"
-                className="w-40 h-40 object-cover rounded-lg shadow"
-              />
-            ) : (
-              <div className="flex flex-col items-center text-slate-400">
-                <UploadCloud size={48} className="mb-2" />
-                <p className="text-sm text-center">
-                  Subir imagen del producto
-                </p>
-              </div>
-            )}
-            <label className="mt-4 bg-sky-600 hover:bg-sky-700 text-white px-5 py-2 rounded-md text-sm cursor-pointer shadow-sm transition">
-              + Seleccionar imagen
-              <input
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={handleImageChange}
-              />
-            </label>
+    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-sky-50 flex items-center justify-center">
+      {/* Contenedor centrado completamente */}
+      <div className="w-full max-w-6xl mx-auto px-2 sm:px-6 py-6 flex flex-col items-center">
+        {/* Error global si hay */}
+        {error && (
+          <div className="bg-rose-100 border border-rose-400 text-rose-700 px-4 py-3 rounded mb-4 w-full max-w-3xl mx-auto text-center">
+            <p className="text-sm">Error al cargar datos: {error}</p>
+            <button
+              onClick={() => window.location.reload()}
+              className="text-rose-600 hover:underline text-sm mt-1"
+            >
+              Recargar página
+            </button>
           </div>
+        )}
 
+        {/* ===== Encabezado ===== */}
+        <div className="flex items-center gap-3 mb-8">
+          <div className="bg-gradient-to-r from-emerald-500 to-sky-500 p-2.5 rounded-lg shadow-md text-white">
+            <PackagePlus size={22} />
+          </div>
+          <h1 className="text-3xl font-bold text-slate-800 tracking-tight text-center">
+            Registro de Productos
+          </h1>
+        </div>
+
+        {/* ===== Formulario ===== */}
+        <div className="bg-white/90 border border-emerald-100 rounded-2xl shadow-md p-8 mb-10 w-full max-w-4xl mx-auto flex flex-col items-center">
           {/* Datos del producto */}
-          <div className="md:col-span-2 space-y-5">
+          <div className="space-y-5 w-full">
             <h2 className="text-lg font-semibold text-slate-700 flex items-center gap-2 border-b pb-2 border-slate-200">
               <Tag size={18} className="text-emerald-500" />
               Datos del producto
             </h2>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-              <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">
-                  Tipo de producto
-                </label>
-                <select
-                  value={formData.tipo}
-                  onChange={(e) => handleChange("tipo", e.target.value)}
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-200"
-                >
-                  <option>Seleccione...</option>
-                  <option>Báscula</option>
-                  <option>Compra y Venta</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">
-                  Código
-                </label>
-                <input
-                  type="text"
-                  value={formData.codigo}
-                  onChange={(e) => handleChange("codigo", e.target.value)}
-                  placeholder="Ej: A001"
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-200"
-                />
-              </div>
-
               <div className="sm:col-span-2">
                 <label className="block text-sm font-medium text-slate-600 mb-1">
-                  Nombre del producto
+                  Nombre del producto *
                 </label>
                 <input
                   type="text"
@@ -154,217 +250,352 @@ export default function RegistroProductos() {
                   onChange={(e) => handleChange("nombre", e.target.value)}
                   placeholder="Ej: Cebolla blanca pelada"
                   className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-200"
+                  required
                 />
               </div>
             </div>
           </div>
-        </div>
 
-        {/* === Clasificación y precios === */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-          <div>
-            <label className="block text-sm font-medium text-slate-600 mb-1">
-              Precio de compra
-            </label>
-            <input
-              type="number"
-              value={formData.precioCompra}
-              onChange={(e) => handleChange("precioCompra", e.target.value)}
-              placeholder="$0.00"
-              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-200"
-            />
-          </div>
+          {/* === Clasificación y precios === */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-6 w-full">
+            <div>
+              <label className="block text-sm font-medium text-slate-600 mb-1">
+                Precio de compra *
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={formData.precio_compra}
+                onChange={(e) => handleChange("precio_compra", e.target.value)}
+                placeholder="0.00"
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-200"
+                required
+              />
+            </div>
 
-          <div>
-            <label className="block text-sm font-medium text-slate-600 mb-1">
-              Precio de venta
-            </label>
-            <input
-              type="number"
-              value={formData.precioVenta}
-              onChange={(e) => handleChange("precioVenta", e.target.value)}
-              placeholder="$0.00"
-              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-200"
-            />
-          </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-600 mb-1">
+                Precio de venta *
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={formData.precio_venta}
+                onChange={(e) => handleChange("precio_venta", e.target.value)}
+                placeholder="0.00"
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-200"
+                required
+              />
+            </div>
 
-          <div>
-            <label className="block text-sm font-medium text-slate-600 mb-1">
-              Categoría
-            </label>
-            <select
-              value={formData.categoria}
-              onChange={(e) => handleChange("categoria", e.target.value)}
-              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-200"
-            >
-              <option>Seleccione...</option>
-              <option>Verduras</option>
-              <option>Frutas</option>
-              <option>Abarrotes</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-600 mb-1">
-              Subcategoría
-            </label>
-            <select
-              value={formData.subcategoria}
-              onChange={(e) => handleChange("subcategoria", e.target.value)}
-              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-200"
-            >
-              <option>Seleccione...</option>
-              <option>Clase A</option>
-              <option>Clase B</option>
-              <option>Clase C</option>
-            </select>
-          </div>
-        </div>
-
-        {/* === Estado y Observaciones === */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-          <div className="flex items-center gap-3">
-            <input
-              type="checkbox"
-              id="activo"
-              checked={activo}
-              onChange={() => setActivo(!activo)}
-              className="h-4 w-4 text-emerald-600 focus:ring-emerald-400"
-            />
-            <label htmlFor="activo" className="text-sm text-slate-700">
-              Producto activo en inventario
-            </label>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-600 mb-1">
-              Observaciones
-            </label>
-            <textarea
-              rows="2"
-              value={formData.observaciones}
-              onChange={(e) => handleChange("observaciones", e.target.value)}
-              placeholder="Notas adicionales, proveedor, condiciones..."
-              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-200"
-            ></textarea>
-          </div>
-        </div>
-
-        {/* === Botones === */}
-        <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-          <button
-            onClick={() => {
-              setFormData({
-                tipo: "",
-                codigo: "",
-                nombre: "",
-                precioCompra: "",
-                precioVenta: "",
-                categoria: "",
-                subcategoria: "",
-                observaciones: "",
-              });
-              setPreview(null);
-            }}
-            className="bg-rose-600 hover:bg-rose-700 text-white px-6 py-2.5 rounded-md text-sm font-medium shadow-sm transition"
-          >
-            Cancelar
-          </button>
-
-          <button
-            onClick={handleSubmit}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2.5 rounded-md text-sm font-medium shadow-sm transition flex items-center gap-2"
-          >
-            <CheckCircle2 size={16} />
-            Registrar Producto
-          </button>
-        </div>
-      </div>
-
-      {/* ===== Tabla de productos ===== */}
-      <div className="bg-white/90 border border-emerald-100 rounded-2xl shadow-md p-6">
-        <h2 className="text-lg font-semibold mb-5 text-slate-700">
-          Productos Registrados ({productos.length})
-        </h2>
-
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-sm border border-slate-200 rounded-lg overflow-hidden">
-            <thead className="bg-gradient-to-r from-emerald-400/80 to-sky-400/80 text-white">
-              <tr>
-                {[
-                  "Código",
-                  "Nombre",
-                  "Categoría",
-                  "Tipo",
-                  "Compra",
-                  "Venta",
-                  "Activo",
-                  "Acciones",
-                ].map((col) => (
-                  <th
-                    key={col}
-                    className="px-4 py-2 text-left text-xs uppercase tracking-wide"
-                  >
-                    {col}
-                  </th>
+            <div>
+              <label className="block text-sm font-medium text-slate-600 mb-1">
+                Categoría *
+              </label>
+              <select
+                value={formData.id_categoria}
+                onChange={(e) => handleChange("id_categoria", e.target.value)}
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-200"
+                required
+              >
+                <option value="">Seleccione...</option>
+                {categorias.map((cat) => (
+                  <option key={cat.id_categoria} value={cat.id_categoria}>
+                    {cat.nombre}
+                  </option>
                 ))}
-              </tr>
-            </thead>
-            <tbody>
-              {productos.length > 0 ? (
-                productos.map((p) => (
-                  <tr
-                    key={p.id}
-                    className="border-b border-slate-100 hover:bg-emerald-50 transition"
-                  >
-                    <td className="px-4 py-2">{p.codigo}</td>
-                    <td className="px-4 py-2 font-medium text-slate-800">
-                      {p.nombre}
-                    </td>
-                    <td className="px-4 py-2">{p.categoria}</td>
-                    <td className="px-4 py-2">{p.tipo}</td>
-                    <td className="px-4 py-2 text-right text-slate-700">
-                      ${p.precioCompra}
-                    </td>
-                    <td className="px-4 py-2 text-right font-semibold text-emerald-600">
-                      ${p.precioVenta}
-                    </td>
-                    <td className="px-4 py-2 text-center">
-                      <span
-                        className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                          p.activo
-                            ? "bg-emerald-100 text-emerald-700"
-                            : "bg-rose-100 text-rose-600"
-                        }`}
-                      >
-                        {p.activo ? "Sí" : "No"}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2 text-center">
-                      <button
-                        onClick={() => handleEliminar(p.id)}
-                        className="bg-rose-600 hover:bg-rose-700 text-white px-3 py-1 rounded-md text-xs shadow"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td
-                    colSpan="8"
-                    className="text-center py-8 text-slate-400 text-sm"
-                  >
-                    <div className="flex flex-col items-center gap-2">
-                      <ArchiveX size={32} className="text-slate-300" />
-                      <p>No hay productos registrados aún...</p>
-                    </div>
-                  </td>
-                </tr>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-600 mb-1">
+                Unidad de medida *
+              </label>
+              <select
+                value={formData.id_unidad}
+                onChange={(e) => handleChange("id_unidad", e.target.value)}
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-200"
+                required
+              >
+                <option value="">Seleccione...</option>
+                {unidades.map((uni) => (
+                  <option key={uni.id_unidad} value={uni.id_unidad}>
+                    {uni.nombre} ({uni.abreviatura})
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Stocks */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-6 w-full">
+            <div>
+              <label className="block text-sm font-medium text-slate-600 mb-1">
+                Stock actual *
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={formData.stock_actual}
+                onChange={(e) => handleChange("stock_actual", e.target.value)}
+                placeholder="0.00"
+                required
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-200"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-600 mb-1">
+                Stock mínimo *
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={formData.stock_minimo}
+                onChange={(e) => handleChange("stock_minimo", e.target.value)}
+                required
+                placeholder="0.00"
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-200"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-600 mb-1">
+                Stock máximo *
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={formData.stock_maximo}
+                onChange={(e) => handleChange("stock_maximo", e.target.value)}
+                required
+                placeholder="0.00"
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-200"
+              />
+            </div>
+          </div>
+
+          {/* === Estado y Descripción === */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6 w-full">
+            <div className="flex items-center gap-3">
+              <input
+                type="checkbox"
+                id="activo"
+                checked={activo}
+                onChange={() => setActivo(!activo)}
+                className="h-4 w-4 text-emerald-600 focus:ring-emerald-400"
+              />
+              <label htmlFor="activo" className="text-sm text-slate-700">
+                Producto activo en inventario
+              </label>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-600 mb-1">
+                Descripción del producto
+              </label>
+              <textarea
+                rows="3"
+                value={formData.descripcion}
+                onChange={(e) => handleChange("descripcion", e.target.value)}
+                placeholder="Descripción detallada del producto..."
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-200"
+              />
+            </div>
+          </div>
+
+          {/* === Botones === */}
+          <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 w-full">
+            <button
+              type="button"
+              onClick={() => {
+                setFormData({
+                  nombre: "",
+                  descripcion: "",
+                  precio_compra: "",
+                  precio_venta: "",
+                  id_categoria: "",
+                  id_unidad: "",
+                  stock_actual: "",
+                  stock_minimo: "",
+                  stock_maximo: "",
+                });
+                setActivo(true);
+              }}
+              className="bg-rose-600 hover:bg-rose-700 text-white px-6 py-2.5 rounded-md text-sm font-medium shadow-sm transition"
+            >
+              Cancelar
+            </button>
+
+            <button
+              type="button"
+              onClick={handleSubmit}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2.5 rounded-md text-sm font-medium shadow-sm transition flex items-center gap-2"
+            >
+              <CheckCircle2 size={16} />
+              Registrar Producto
+            </button>
+          </div>
+        </div>
+
+        {/* ===== Filtros y Búsqueda ===== */}
+        <div className="bg-white/90 border border-emerald-100 rounded-2xl shadow-md p-6 mb-6 w-full max-w-4xl flex flex-col items-center">
+          <div className="flex flex-col sm:flex-row gap-4 items-center justify-center w-full">
+            <div className="flex items-center gap-3 flex-1 max-w-md mx-auto">
+              <Search size={20} className="text-slate-400" />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  setCurrentPage(0);
+                }}
+                placeholder="Buscar por nombre de producto..."
+                className="flex-1 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-200"
+              />
+            </div>
+            <div className="flex items-center gap-3">
+              <label className="text-sm text-slate-600">Ordenar por nombre:</label>
+              <select
+                value={sortOrder}
+                onChange={(e) => {
+                  setSortOrder(e.target.value);
+                  setCurrentPage(0);
+                }}
+                className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-200"
+              >
+                <option value="asc">A-Z</option>
+                <option value="desc">Z-A</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* ===== Tabla de productos ===== */}
+        <div className="bg-white/90 border border-emerald-100 rounded-2xl shadow-md p-6 w-full max-w-6xl flex flex-col items-center">
+          <h2 className="text-lg font-semibold mb-5 text-slate-700 text-center">
+            Productos Registrados ({sortedProducts.length})
+          </h2>
+
+          {productos.length === 0 && !error ? (
+            <div className="text-center py-8 text-slate-400">
+              <ArchiveX size={32} className="mx-auto mb-2 text-slate-300" />
+              <p>No hay productos registrados aún. ¡Registra el primero!</p>
+            </div>
+          ) : (
+            <>
+              {/* La tabla nunca debe hacer scroll-x ni cambiar su ancho */}
+              <div className="w-full flex justify-center">
+                <table className="table-fixed w-full max-w-5xl text-sm border border-slate-200 rounded-lg overflow-hidden">
+                  <thead className="bg-gradient-to-r from-emerald-400/80 to-sky-400/80 text-white">
+                    <tr>
+                      {[
+                        { key: "ID Producto", class: "w-[7%] text-center" },
+                        { key: "Nombre", class: "w-[21%] text-center" },
+                        { key: "Categoría", class: "w-[14%] text-center" },
+                        { key: "Unidad", class: "w-[14%] text-center" },
+                        { key: "Stock Actual", class: "w-[11%] text-center" },
+                        { key: "Compra", class: "w-[11%] text-center" },
+                        { key: "Venta", class: "w-[11%] text-center" },
+                        { key: "Estado", class: "w-[11%] text-center" },
+                      ].map((col) => (
+                        <th
+                          key={col.key}
+                          className={`px-2 py-2 text-xs uppercase tracking-wide ${col.class} whitespace-nowrap`}
+                        >
+                          {col.key}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paginatedProducts.length > 0 ? (
+                      paginatedProducts.map((p) => (
+                        <tr
+                          key={p.id_producto}
+                          className="border-b border-slate-100 hover:bg-emerald-50 transition text-center"
+                        >
+                          <td className="px-2 py-2 font-mono text-xs">{p.id_producto}</td>
+                          <td className="px-2 py-2 font-medium text-slate-800 truncate max-w-[180px] mx-auto">
+                            {p.nombre}
+                          </td>
+                          <td className="px-2 py-2">{p.nombre_categoria || 'N/A'}</td>
+                          <td className="px-2 py-2">
+                            {p.nombre_unidad ? `${p.nombre_unidad} (${p.unidad_abrev || ''})` : 'N/A'}
+                          </td>
+                          <td className="px-2 py-2 text-right text-slate-700">
+                            {parseFloat(p.stock_actual || 0).toFixed(2)}
+                          </td>
+                          <td className="px-2 py-2 text-right text-slate-700">
+                            ${parseFloat(p.precio_compra || 0).toFixed(2)}
+                          </td>
+                          <td className="px-2 py-2 text-right font-semibold text-emerald-600">
+                            ${parseFloat(p.precio_venta || 0).toFixed(2)}
+                          </td>
+                          <td className="px-2 py-2">
+                            <span
+                              className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                                p.estado === 1
+                                  ? "bg-emerald-100 text-emerald-700"
+                                  : "bg-rose-100 text-rose-600"
+                              }`}
+                            >
+                              {p.estado === 1 ? "Sí" : "No"}
+                            </span>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td
+                          colSpan="8"
+                          className="text-center py-8 text-slate-400 text-sm"
+                        >
+                          <div className="flex flex-col items-center gap-2">
+                            <ArchiveX size={32} className="text-slate-300" />
+                            <p>No hay productos que coincidan con la búsqueda...</p>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Paginación */}
+              {totalPages > 1 && (
+                <div className="flex flex-col sm:flex-row items-center justify-center mt-6 gap-4">
+                  <div className="text-sm text-slate-600 text-center">
+                    Mostrando {currentPage * itemsPerPage + 1} a {Math.min((currentPage + 1) * itemsPerPage, sortedProducts.length)} de {sortedProducts.length} productos
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handlePageChange(currentPage - 1)}
+                      disabled={currentPage === 0}
+                      className="px-3 py-2 border border-slate-200 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50 transition"
+                    >
+                      <ChevronLeft size={16} />
+                    </button>
+                    <span className="text-sm text-slate-600 px-3 py-2">
+                      Página {currentPage + 1} de {totalPages}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handlePageChange(currentPage + 1)}
+                      disabled={currentPage === totalPages - 1}
+                      className="px-3 py-2 border border-slate-200 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50 transition"
+                    >
+                      <ChevronRight size={16} />
+                    </button>
+                  </div>
+                </div>
               )}
-            </tbody>
-          </table>
+            </>
+          )}
         </div>
       </div>
     </div>
