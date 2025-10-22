@@ -213,24 +213,36 @@ export default function ConsultaInventarioProductos() {
           />
 
           <div className="flex flex-wrap gap-2 ml-auto">
-            {[
-              { key: "todos", label: "Todos", bg: "orange" },
-              { key: "porCalibrar", label: "Por Calibrar", bg: "amber" },
-              { key: "inactivos", label: "Inactivos", bg: "pink" },
-              { key: "nuevo", label: "Nuevo", bg: "green" },
-            ].map((btn) => (
-              <button
-                key={btn.key}
-                onClick={() => setActiveFilter(btn.key)}
-                className={`${
-                  activeFilter === btn.key
-                    ? `bg-${btn.bg}-600 hover:bg-${btn.bg}-700 text-white`
-                    : `bg-${btn.bg}-500 hover:bg-${btn.bg}-600 text-white`
-                } px-3 py-2 rounded text-sm shadow transition`}
-              >
-                {btn.label}
-              </button>
-            ))}
+            <button
+              onClick={() => setActiveFilter("todos")}
+              className={`px-3 py-2 rounded text-sm shadow transition ${
+                activeFilter === "todos"
+                  ? "bg-orange-600 hover:bg-orange-700 text-white"
+                  : "bg-orange-500 hover:bg-orange-600 text-white"
+              }`}
+            >
+              Todos
+            </button>
+            <button
+              onClick={() => setActiveFilter("porCalibrar")}
+              className={`px-3 py-2 rounded text-sm shadow transition ${
+                activeFilter === "porCalibrar"
+                  ? "bg-amber-600 hover:bg-amber-700 text-white"
+                  : "bg-amber-500 hover:bg-amber-600 text-white"
+              }`}
+            >
+              Por Calibrar
+            </button>
+            <button
+              onClick={() => setActiveFilter("inactivos")}
+              className={`px-3 py-2 rounded text-sm shadow transition ${
+                activeFilter === "inactivos"
+                  ? "bg-pink-600 hover:bg-pink-700 text-white"
+                  : "bg-pink-500 hover:bg-pink-600 text-white"
+              }`}
+            >
+              Inactivos
+            </button>
           </div>
         </div>
       </div>

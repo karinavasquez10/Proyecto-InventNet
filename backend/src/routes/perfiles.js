@@ -139,11 +139,16 @@ router.post("/", upload.single("foto"), async (req, res) => {
   try {
     const rolString = Array.isArray(rol) ? rol.join(',') : rol || 'cajero';
 
+    // Normalizar datos antes de insertar
+    const correoNormalizado = correo.toLowerCase().trim();
+    const contrasenaNormalizada = contrasena.trim();
+
     console.log(`[DEBUG] Creando usuario: ${nombre}, rol: ${rolString}, sucursal: ${id_sucursal}`);
+    console.log(`[DEBUG] Contraseña guardada (length: ${contrasenaNormalizada.length}):`, JSON.stringify(contrasenaNormalizada));
 
     const [userResult] = await pool.query(
       `INSERT INTO usuarios (nombre, correo, contrasena, rol, estado, id_sucursal) VALUES (?, ?, ?, ?, ?, ?)`,
-      [nombre, correo, contrasena, rolString, estado, id_sucursal]
+      [nombre, correoNormalizado, contrasenaNormalizada, rolString, estado, id_sucursal]
     );
     const id_usuario = userResult.insertId;
 
@@ -211,7 +216,7 @@ router.put("/:id", upload.single("foto"), async (req, res) => {
   const { id } = req.params;
   const {
     nombre, correo, contrasena, rol, direccion, telefono, cargo,
-    documento_identidad, genero, fecha_nacimiento, estado
+    documento_identidad, genero, fecha_nacimiento, estado, id_sucursal
   } = req.body;
 
   let fotoPublicId = null;
@@ -238,12 +243,38 @@ router.put("/:id", upload.single("foto"), async (req, res) => {
 
     const rolString = Array.isArray(rol) ? rol.join(',') : rol || 'cajero';
 
-    await pool.query(
-      `UPDATE usuarios 
-       SET nombre = ?, correo = ?, contrasena = COALESCE(?, contrasena), rol = ?, estado = ?
-       WHERE id_usuario = ? AND is_deleted = 0`,
-      [nombre, correo, contrasena, rolString, estado || 1, id]
-    );
+    // Normalizar correo
+    const correoNormalizado = correo ? correo.toLowerCase().trim() : null;
+
+    // Construir query de actualización dinámicamente
+    let updateQuery = `UPDATE usuarios SET nombre = ?, correo = ?, rol = ?, estado = ?`;
+    let updateParams = [nombre, correoNormalizado, rolString, estado || 1];
+
+    // Solo actualizar contraseña si se proporciona
+    if (contrasena && contrasena.trim()) {
+      const contrasenaNormalizada = contrasena.trim();
+      updateQuery += `, contrasena = ?`;
+      updateParams.push(contrasenaNormalizada);
+      console.log(`[DEBUG] Actualizando contraseña para usuario ID: ${id}`);
+    } else {
+      console.log(`[DEBUG] No se actualiza contraseña para usuario ID: ${id}`);
+    }
+
+    // Agregar id_sucursal si se proporciona
+    if (id_sucursal) {
+      updateQuery += `, id_sucursal = ?`;
+      updateParams.push(id_sucursal);
+    }
+
+    updateQuery += ` WHERE id_usuario = ? AND is_deleted = 0`;
+    updateParams.push(id);
+
+    console.log(`[DEBUG] Query de actualización:`, updateQuery);
+    console.log(`[DEBUG] Parámetros (sin contraseña en log):`, updateParams.map((p, i) => 
+      updateParams.length === updateParams.indexOf(contrasena?.trim()) + 1 && i === updateParams.indexOf(contrasena?.trim()) ? '[CONTRASEÑA OCULTA]' : p
+    ));
+
+    await pool.query(updateQuery, updateParams);
 
     const campos = [
       direccion || null,
@@ -263,7 +294,7 @@ router.put("/:id", upload.single("foto"), async (req, res) => {
       campos
     );
 
-    // Registrar auditoría de actualización de perfil
+    // Registrar auditoría de actualización de perfil (sin req para evitar ECONNRESET)
     await registrarAuditoria({
       id_usuario: id,
       accion: 'Actualización de perfil',
@@ -271,12 +302,13 @@ router.put("/:id", upload.single("foto"), async (req, res) => {
       registro_id: id,
       detalles: {
         nombre,
-        correo,
+        correo: correoNormalizado,
         rol: rolString,
         estado: estado || 1,
-        foto_actualizada: !!req.file
+        foto_actualizada: !!req.file,
+        contrasena_actualizada: !!(contrasena && contrasena.trim())
       },
-      req
+      req: null
     });
 
     res.json({

@@ -5,7 +5,7 @@ import { registrarAuditoria } from '../utils/auditoria.js';
 
 const router = express.Router();
 
-// GET: Listar SOLO elementos de compras de la papelera (con info reconstruida) - Sin cambios para productos (agregar si quieres mostrar)
+// GET: Listar elementos de la papelera (compras, productos, clientes)
 router.get('/', async (req, res) => {
   try {
     const [rows] = await db.query(`
@@ -18,7 +18,7 @@ router.get('/', async (req, res) => {
         u.nombre as eliminadoPor
       FROM papelera p 
       LEFT JOIN usuarios u ON p.id_usuario = u.id_usuario 
-      WHERE p.tabla IN ('compras', 'productos')  -- Incluir productos
+      WHERE p.tabla IN ('compras', 'productos', 'clientes')  -- Incluir clientes
       ORDER BY p.fecha_eliminacion DESC
     `);
     
@@ -29,6 +29,7 @@ router.get('/', async (req, res) => {
         let nombre = parsed.nombre || parsed.titulo || parsed.nombre_producto || parsed.proveedor_nombre || 'Sin nombre';
         if (row.tipo === 'compras') nombre = `Compra de ${parsed.proveedor_nombre || 'Proveedor'} (ID: ${row.registro_id})`;
         if (row.tipo === 'productos') nombre = `${parsed.nombre || 'Producto'} (ID: ${row.registro_id})`;
+        if (row.tipo === 'clientes') nombre = `${parsed.nombre || 'Cliente'} - ${parsed.identificacion || 'Sin ID'} (ID: ${row.registro_id})`;
         return {
           ...row,
           nombre,

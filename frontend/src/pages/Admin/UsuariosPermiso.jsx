@@ -101,11 +101,23 @@ export default function UsuariosPermiso() {
     try {
       setLoading(true);
       
-      // Preparar datos: solo incluir password si se ingresó
-      const dataToSend = { ...formData };
-      if (!dataToSend.password) {
-        delete dataToSend.password; // No enviar password vacío al backend
+      // Preparar datos: mapear password a contrasena y solo incluir si se ingresó
+      const dataToSend = {
+        nombre: formData.nombre,
+        correo: formData.correo,
+        rol: formData.rol,
+        estado: formData.estado,
+        id_sucursal: formData.id_sucursal,
+        telefono: formData.telefono || null,
+        cargo: formData.cargo || null
+      };
+      
+      // Solo agregar contrasena si se proporcionó
+      if (formData.password && formData.password.trim()) {
+        dataToSend.contrasena = formData.password.trim();
       }
+
+      console.log('[DEBUG] Datos a enviar para actualización:', dataToSend);
       
       await api.put(`/perfil/${selectedUser.id_usuario}`, dataToSend);
       alert("Usuario actualizado exitosamente");

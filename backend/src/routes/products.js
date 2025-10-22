@@ -20,6 +20,7 @@ router.get('/productos', async (req, res) => {
         p.stock_maximo,
         c.nombre as nombre_categoria,
         c.id_categoria,
+        c.impuesto,
         u.nombre as nombre_unidad,
         u.abreviatura as unidad_abrev,
         p.estado

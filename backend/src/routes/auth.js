@@ -33,14 +33,14 @@ router.post("/login", async (req, res) => {
     if (rows.length === 0) {
       console.log(`Login fallido: Usuario no encontrado para email ${email}`);
       
-      // Registrar intento fallido de login
+      // Registrar intento fallido de login (sin req para evitar ECONNRESET)
       await registrarAuditoria({
         id_usuario: null,
         accion: 'LOGIN fallido - Usuario no encontrado',
         tabla_nombre: 'usuarios',
         registro_id: null,
         detalles: { email_intentado: email },
-        req
+        req: null
       });
       
       return res.status(401).json({ error: "Usuario no encontrado o inactivo" });
@@ -48,8 +48,13 @@ router.post("/login", async (req, res) => {
 
     const user = rows[0];
 
-    // Comparación de contraseña (simple por ahora; considera bcrypt en producción)
-    if (password !== user.contrasena) {
+    // Debug: Mostrar valores para diagnóstico
+    console.log(`[DEBUG] Contraseña recibida (length: ${password.length}):`, JSON.stringify(password));
+    console.log(`[DEBUG] Contraseña en BD (length: ${user.contrasena?.length || 0}):`, JSON.stringify(user.contrasena));
+    console.log(`[DEBUG] ¿Son iguales?`, password === user.contrasena);
+
+    // Comparación de contraseña con trim para evitar espacios
+    if (password.trim() !== (user.contrasena || '').trim()) {
       console.log(`Login fallido: Contraseña incorrecta para email ${email}`);
       
       // Registrar intento fallido por contraseña incorrecta
@@ -59,7 +64,7 @@ router.post("/login", async (req, res) => {
         tabla_nombre: 'usuarios',
         registro_id: user.id_usuario,
         detalles: { email: user.correo },
-        req
+        req: null
       });
       
       return res.status(401).json({ error: "Contraseña incorrecta" });
@@ -79,7 +84,7 @@ router.post("/login", async (req, res) => {
 
     console.log(`Login exitoso para usuario ${user.nombre} (${user.rol})`);
 
-    // Registrar auditoría de login exitoso
+    // Registrar auditoría de login exitoso (sin req para evitar ECONNRESET)
     await registrarAuditoria({
       id_usuario: user.id_usuario,
       accion: 'LOGIN exitoso',
@@ -90,7 +95,7 @@ router.post("/login", async (req, res) => {
         rol: user.rol,
         nombre: user.nombre
       },
-      req
+      req: null
     });
 
     res.json({

@@ -44,7 +44,7 @@ router.post("/", async (req, res) => {
     const [result] = await pool.query(
       `INSERT INTO clientes (nombre, identificacion, direccion, telefono, correo, tipo)
        VALUES (?, ?, ?, ?, ?, ?)`,
-      [nombre, identificacion, direccion, telefono, correo, tipo || "persona"]
+      [nombre, identificacion, direccion || null, telefono || null, correo || null, tipo || "persona"]
     );
 
     const [rows] = await pool.query(
@@ -62,22 +62,26 @@ router.post("/", async (req, res) => {
       [result.insertId]
     );
 
-    // Registrar auditoría de creación de cliente
-    await registrarAuditoria({
-      id_usuario: req.user?.id || 1,
-      accion: 'Creación de cliente',
-      tabla_nombre: 'clientes',
-      registro_id: result.insertId,
-      detalles: {
-        nombre,
-        identificacion,
-        direccion,
-        telefono,
-        correo,
-        tipo: tipo || "persona"
-      },
-      req
-    });
+    // Registrar auditoría de creación de cliente (sin pasar req para evitar ECONNRESET)
+    try {
+      await registrarAuditoria({
+        id_usuario: req.user?.id || 1,
+        accion: 'Creación de cliente',
+        tabla_nombre: 'clientes',
+        registro_id: result.insertId,
+        detalles: {
+          nombre,
+          identificacion,
+          direccion: direccion || null,
+          telefono: telefono || null,
+          correo: correo || null,
+          tipo: tipo || "persona"
+        },
+        req: null // No pasar req para evitar problemas de conexión
+      });
+    } catch (auditError) {
+      console.error('Error en auditoría (no crítico):', auditError);
+    }
 
     res.status(201).json(rows[0]);
   } catch (error) {
@@ -123,22 +127,26 @@ router.put("/:id", async (req, res) => {
       [id]
     );
 
-    // Registrar auditoría de actualización de cliente
-    await registrarAuditoria({
-      id_usuario: req.user?.id || 1,
-      accion: 'Actualización de cliente',
-      tabla_nombre: 'clientes',
-      registro_id: id,
-      detalles: {
-        nombre,
-        identificacion,
-        direccion,
-        telefono,
-        correo,
-        tipo: tipo || "persona"
-      },
-      req
-    });
+    // Registrar auditoría de actualización de cliente (sin pasar req)
+    try {
+      await registrarAuditoria({
+        id_usuario: req.user?.id || 1,
+        accion: 'Actualización de cliente',
+        tabla_nombre: 'clientes',
+        registro_id: id,
+        detalles: {
+          nombre,
+          identificacion,
+          direccion: direccion || null,
+          telefono: telefono || null,
+          correo: correo || null,
+          tipo: tipo || "persona"
+        },
+        req: null // No pasar req para evitar problemas de conexión
+      });
+    } catch (auditError) {
+      console.error('Error en auditoría (no crítico):', auditError);
+    }
 
     res.json(rows[0]);
   } catch (error) {
@@ -181,22 +189,26 @@ router.delete("/:id", async (req, res) => {
       [deletedBy, id]
     );
 
-    // Registrar auditoría de eliminación de cliente
-    await registrarAuditoria({
-      id_usuario: deletedBy,
-      accion: 'Eliminación de cliente (soft delete)',
-      tabla_nombre: 'clientes',
-      registro_id: id,
-      detalles: {
-        nombre: cliente.nombre,
-        identificacion: cliente.identificacion,
-        telefono: cliente.telefono,
-        correo: cliente.correo,
-        tipo: cliente.tipo,
-        movido_a_papelera: true
-      },
-      req
-    });
+    // Registrar auditoría de eliminación de cliente (sin pasar req)
+    try {
+      await registrarAuditoria({
+        id_usuario: deletedBy,
+        accion: 'Eliminación de cliente (soft delete)',
+        tabla_nombre: 'clientes',
+        registro_id: id,
+        detalles: {
+          nombre: cliente.nombre,
+          identificacion: cliente.identificacion,
+          telefono: cliente.telefono || null,
+          correo: cliente.correo || null,
+          tipo: cliente.tipo,
+          movido_a_papelera: true
+        },
+        req: null // No pasar req para evitar problemas de conexión
+      });
+    } catch (auditError) {
+      console.error('Error en auditoría (no crítico):', auditError);
+    }
 
     res.json({ message: "Cliente eliminado exitosamente" });
   } catch (error) {
