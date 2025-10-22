@@ -1,6 +1,7 @@
 // cajas.js (actualizado para inicializar monto_final = monto_inicial al abrir caja)
 import express from "express";
 import pool from "../config/database.js";
+import { registrarAuditoria } from "../utils/auditoria.js";
 
 const router = express.Router();
 
@@ -48,6 +49,24 @@ router.post('/', async (req, res) => {
         );
 
         const [rows] = await pool.query('SELECT * FROM caja WHERE id_caja = ?', [result.insertId]);
+
+        // Registrar auditoría de apertura de caja
+        await registrarAuditoria({
+            id_usuario,
+            accion: 'Apertura de caja',
+            tabla_nombre: 'caja',
+            registro_id: result.insertId,
+            detalles: {
+                id_caja: result.insertId,
+                id_sucursal: idSucursalFinal,
+                monto_inicial,
+                monto_final: montoFinalInicial,
+                estado: estado || 'abierta',
+                fecha_apertura: fecha_apertura || new Date().toISOString()
+            },
+            req
+        });
+
         res.status(201).json(rows[0]);
     } catch (error) {
         console.error('Error al abrir caja:', error);
@@ -197,6 +216,24 @@ router.put('/:id_caja/cerrar', async (req, res) => {
         if (updated[0].monto_inicial !== montoInicialOriginal) {
             // 
         }
+
+        // Registrar auditoría de cierre de caja
+        await registrarAuditoria({
+            id_usuario: caja.id_usuario,
+            accion: 'Cierre de caja',
+            tabla_nombre: 'caja',
+            registro_id: id_caja,
+            detalles: {
+                id_caja,
+                monto_inicial: montoInicialOriginal,
+                monto_final: montoFinalCierre,
+                diferencia: diferenciaCalculada,
+                total_ventas: caja.total_ventas,
+                fecha_cierre: fecha_cierre || new Date().toISOString(),
+                observaciones
+            },
+            req
+        });
         
         res.json(updated[0]);
     } catch (error) {

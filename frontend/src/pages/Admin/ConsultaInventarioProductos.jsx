@@ -4,6 +4,19 @@ import { PackageSearch, Filter, AlertTriangle, Database, ChevronLeft, ChevronRig
 // Asumiendo backend en puerto 5000; ajusta si es diferente
 const API_BASE_URL = 'http://localhost:5000';
 
+// Spinner de carga mejorado
+function Spinner({ label = "Cargando..." }) {
+  return (
+    <div className="flex flex-col justify-center items-center py-12">
+      <svg className="animate-spin h-12 w-12 text-orange-500 mb-4" viewBox="0 0 45 45">
+        <circle className="opacity-20" cx="22.5" cy="22.5" r="20" stroke="currentColor" strokeWidth="5" fill="none" />
+        <path d="M42.5,22.5a20,20 0 1,1-40,0" stroke="currentColor" strokeWidth="5" fill="none" className="opacity-70" />
+      </svg>
+      <span className="text-orange-600 text-base font-medium tracking-wide">{label}</span>
+    </div>
+  );
+}
+
 export default function ConsultaInventarioProductos() {
   const [productos, setProductos] = useState([]);
   const [categorias, setCategorias] = useState([]);
@@ -107,8 +120,8 @@ export default function ConsultaInventarioProductos() {
 
   if (loading) {
     return (
-      <div className="p-4 sm:p-1 w-full max-w-[calc(150%-16rem)] mt-2 flex items-center justify-center min-h-[400px]">
-        <p className="text-slate-600">Cargando inventario...</p>
+      <div className="p-4 sm:p-1 w-full max-w-[calc(150%-16rem)] mt-2">
+        <Spinner label="Cargando inventario..." />
       </div>
     );
   }

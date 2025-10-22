@@ -331,16 +331,16 @@ export default function GestionProveedores() {
             </button>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm border border-orange-100 rounded-lg overflow-hidden">
+          <div className="overflow-x-auto -mx-6 px-6">
+            <table className="min-w-full text-xs border border-orange-100 rounded-lg overflow-hidden border-collapse">
               <thead className="bg-gradient-to-r from-orange-400/80 to-fuchsia-400/80 text-white">
                 <tr>
-                  <th className="px-3 py-2 border border-orange-100">Nombre</th>
-                  <th className="px-3 py-2 border border-orange-100">Identificación</th>
-                  <th className="px-3 py-2 border border-orange-100">Teléfono</th>
-                  <th className="px-3 py-2 border border-orange-100">Email</th>
-                  <th className="px-3 py-2 border border-orange-100">Dirección</th>
-                  <th className="px-3 py-2 border border-orange-100 text-center">
+                  <th className="px-2 py-2 border border-orange-100 whitespace-nowrap w-[130px]">Nombre</th>
+                  <th className="px-2 py-2 border border-orange-100 whitespace-nowrap w-[110px]">Identificación</th>
+                  <th className="px-2 py-2 border border-orange-100 whitespace-nowrap w-[95px]">Teléfono</th>
+                  <th className="px-2 py-2 border border-orange-100 whitespace-nowrap w-[150px]">Email</th>
+                  <th className="px-2 py-2 border border-orange-100 whitespace-nowrap">Dirección</th>
+                  <th className="px-2 py-2 border border-orange-100 whitespace-nowrap text-center w-[165px]">
                     Acciones
                   </th>
                 </tr>
@@ -352,34 +352,36 @@ export default function GestionProveedores() {
                       key={prov.id}
                       className="hover:bg-orange-50 transition text-slate-700"
                     >
-                      <td className="px-3 py-2 border border-orange-100 max-w-[150px] truncate">
+                      <td className="px-2 py-2 border border-orange-100 text-[11px] truncate" title={prov.nombre}>
                         {prov.nombre}
                       </td>
-                      <td className="px-3 py-2 border border-orange-100 max-w-[120px] truncate">
+                      <td className="px-2 py-2 border border-orange-100 text-[11px] truncate" title={prov.identificacion}>
                         {prov.identificacion}
                       </td>
-                      <td className="px-3 py-2 border border-orange-100 max-w-[120px] truncate">
+                      <td className="px-2 py-2 border border-orange-100 text-[11px] truncate" title={prov.telefono}>
                         {prov.telefono}
                       </td>
-                      <td className="px-3 py-2 border border-orange-100 max-w-[180px] truncate">
+                      <td className="px-2 py-2 border border-orange-100 text-[11px] truncate" title={prov.email}>
                         {prov.email}
                       </td>
-                      <td className="px-3 py-2 border border-orange-100 max-w-[250px] break-words">
+                      <td className="px-2 py-2 border border-orange-100 text-[11px] truncate" title={prov.direccion}>
                         {prov.direccion}
                       </td>
-                      <td className="px-3 py-2 border border-orange-100 text-center flex justify-center gap-2">
-                        <button
-                          onClick={() => handleEditar(prov)}
-                          className="bg-yellow-400 hover:bg-yellow-500 text-white px-3 py-1 rounded-md text-xs font-medium flex items-center gap-1"
-                        >
-                          <Edit2 size={14} /> Editar
-                        </button>
-                        <button
-                          onClick={() => handleEliminar(prov.id)}
-                          className="bg-rose-500 hover:bg-rose-600 text-white px-3 py-1 rounded-md text-xs font-medium flex items-center gap-1"
-                        >
-                          <Trash2 size={14} /> Eliminar
-                        </button>
+                      <td className="px-2 py-2 border border-orange-100 text-center">
+                        <div className="flex justify-center gap-1.5">
+                          <button
+                            onClick={() => handleEditar(prov)}
+                            className="bg-yellow-400 hover:bg-yellow-500 text-white px-2 py-1 rounded-md text-[10px] font-medium flex items-center gap-1 transition"
+                          >
+                            <Edit2 size={12} /> Editar
+                          </button>
+                          <button
+                            onClick={() => handleEliminar(prov.id)}
+                            className="bg-rose-500 hover:bg-rose-600 text-white px-2 py-1 rounded-md text-[10px] font-medium flex items-center gap-1 transition"
+                          >
+                            <Trash2 size={12} /> Eliminar
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -387,7 +389,7 @@ export default function GestionProveedores() {
                   <tr>
                     <td
                       colSpan="6"
-                      className="text-center text-slate-400 py-4 italic"
+                      className="text-center text-slate-400 py-4 italic text-xs"
                     >
                       No se encontraron proveedores.
                     </td>

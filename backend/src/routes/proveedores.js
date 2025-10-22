@@ -1,6 +1,7 @@
 // routes/proveedores.js
 import express from 'express';
 import db from '../config/database.js'; // Asumiendo que existe un archivo de configuración de base de datos (e.g., usando mysql2 pool). Ajusta la importación según tu setup.
+import { registrarAuditoria } from '../utils/auditoria.js';
 
 const router = express.Router();
 
@@ -28,6 +29,23 @@ router.post('/', async (req, res) => {
       'INSERT INTO proveedores (nombre, identificacion, direccion, telefono, correo) VALUES (?, ?, ?, ?, ?)',
       [nombre, identificacion || null, direccion || null, telefono, correo || null]
     );
+
+    // Registrar auditoría de creación de proveedor
+    await registrarAuditoria({
+      id_usuario: req.user?.id || 1,
+      accion: 'Creación de proveedor',
+      tabla_nombre: 'proveedores',
+      registro_id: result.insertId,
+      detalles: {
+        nombre,
+        identificacion: identificacion || null,
+        direccion: direccion || null,
+        telefono,
+        correo: correo || null
+      },
+      req
+    });
+
     res.status(201).json({ id: result.insertId, message: 'Proveedor creado exitosamente' });
   } catch (err) {
     console.error('Error al crear proveedor:', err);
@@ -50,6 +68,23 @@ router.put('/:id', async (req, res) => {
     if (result.affectedRows === 0) {
       return res.status(404).json({ error: 'Proveedor no encontrado' });
     }
+
+    // Registrar auditoría de actualización de proveedor
+    await registrarAuditoria({
+      id_usuario: req.user?.id || 1,
+      accion: 'Actualización de proveedor',
+      tabla_nombre: 'proveedores',
+      registro_id: id,
+      detalles: {
+        nombre,
+        identificacion: identificacion || null,
+        direccion: direccion || null,
+        telefono,
+        correo: correo || null
+      },
+      req
+    });
+
     res.json({ message: 'Proveedor actualizado exitosamente' });
   } catch (err) {
     console.error('Error al actualizar proveedor:', err);
@@ -88,6 +123,22 @@ router.delete('/:id', async (req, res) => {
         'UPDATE proveedores SET is_deleted = 1, deleted_at = NOW(), deleted_by = ? WHERE id_proveedor = ?',
         [deletedBy, id]
       );
+
+      // Registrar auditoría de eliminación de proveedor
+      await registrarAuditoria({
+        id_usuario: deletedBy,
+        accion: 'Eliminación de proveedor (soft delete)',
+        tabla_nombre: 'proveedores',
+        registro_id: id,
+        detalles: {
+          nombre: proveedor.nombre,
+          identificacion: proveedor.identificacion,
+          telefono: proveedor.telefono,
+          correo: proveedor.correo,
+          movido_a_papelera: true
+        },
+        req
+      });
   
       res.json({ message: 'Proveedor eliminado exitosamente' });
     } catch (err) {

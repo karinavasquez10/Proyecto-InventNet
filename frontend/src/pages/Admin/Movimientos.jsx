@@ -1,8 +1,22 @@
 import React, { useState, useEffect } from "react";
-import { ArrowUpCircle, ArrowDownCircle, Wallet, FileSpreadsheet, Filter, ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowUpCircle, ArrowDownCircle, Wallet, FileSpreadsheet, Filter, ChevronLeft, ChevronRight, Download } from "lucide-react";
+import * as XLSX from 'xlsx';
 
 // Asumiendo backend en puerto 5000; ajusta si es diferente
 const API_BASE_URL = 'http://localhost:5000';
+
+// Spinner de carga mejorado
+function Spinner({ label = "Cargando..." }) {
+  return (
+    <div className="flex flex-col justify-center items-center py-12">
+      <svg className="animate-spin h-12 w-12 text-indigo-500 mb-4" viewBox="0 0 45 45">
+        <circle className="opacity-20" cx="22.5" cy="22.5" r="20" stroke="currentColor" strokeWidth="5" fill="none" />
+        <path d="M42.5,22.5a20,20 0 1,1-40,0" stroke="currentColor" strokeWidth="5" fill="none" className="opacity-70" />
+      </svg>
+      <span className="text-indigo-600 text-base font-medium tracking-wide">{label}</span>
+    </div>
+  );
+}
 
 export default function Movimientos() {
   const [movimientos, setMovimientos] = useState([]);
@@ -117,10 +131,68 @@ export default function Movimientos() {
     setCurrentPage(0);
   };
 
+  const handleExportarExcel = () => {
+    // Preparar datos para exportar
+    const datosExportar = filteredMovimientos.map((m, index) => ({
+      'N°': index + 1,
+      'Fecha': new Date(m.fecha).toLocaleDateString('es-ES'),
+      'Hora': new Date(m.fecha).toLocaleTimeString('es-ES'),
+      'Tipo': m.tipo,
+      'Descripción': m.descripcion,
+      'Monto': m.monto.toLocaleString('es-ES', { style: 'currency', currency: 'COP' })
+    }));
+
+    // Agregar resumen al final
+    datosExportar.push({});
+    datosExportar.push({
+      'N°': '',
+      'Fecha': '',
+      'Hora': '',
+      'Tipo': 'RESUMEN',
+      'Descripción': 'Total Ingresos',
+      'Monto': ingresos.toLocaleString('es-ES', { style: 'currency', currency: 'COP' })
+    });
+    datosExportar.push({
+      'N°': '',
+      'Fecha': '',
+      'Hora': '',
+      'Tipo': '',
+      'Descripción': 'Total Egresos',
+      'Monto': egresos.toLocaleString('es-ES', { style: 'currency', currency: 'COP' })
+    });
+    datosExportar.push({
+      'N°': '',
+      'Fecha': '',
+      'Hora': '',
+      'Tipo': '',
+      'Descripción': 'Saldo Neto',
+      'Monto': saldo.toLocaleString('es-ES', { style: 'currency', currency: 'COP' })
+    });
+
+    // Crear workbook y worksheet
+    const ws = XLSX.utils.json_to_sheet(datosExportar);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Movimientos');
+
+    // Ajustar ancho de columnas
+    ws['!cols'] = [
+      { wch: 5 },  // N°
+      { wch: 12 }, // Fecha
+      { wch: 10 }, // Hora
+      { wch: 10 }, // Tipo
+      { wch: 40 }, // Descripción
+      { wch: 15 }  // Monto
+    ];
+
+    // Descargar archivo
+    const fecha = new Date().toISOString().split('T')[0];
+    XLSX.writeFile(wb, `Movimientos_${fecha}.xlsx`);
+  };
+
   if (loading) {
     return (
-      <div className="p-4 sm:p-14 w-full max-w-[calc(150%-16rem)] mt-1 flex items-center justify-center min-h-[400px]">
-        <p className="text-slate-600">Cargando movimientos...</p>
+      <div className="p-4 sm:p-14 w-full max-w-[calc(150%-16rem)] mt-1">
+        <Spinner label="Cargando movimientos..." />
       </div>
     );
   }
@@ -171,7 +243,7 @@ export default function Movimientos() {
 
         <div className="bg-gradient-to-br from-blue-50 to-white border border-blue-200 p-4 rounded-xl shadow-sm flex items-center justify-between">
           <div>
-            <p className="text-sm text-blue-700 font-semibold">Saldo Neto</p>
+            <p className="text-sm text-blue-700 font-semibold">General</p>
             <p
               className={`text-lg font-bold ${
                 saldo >= 0 ? "text-blue-600" : "text-red-600"
@@ -269,24 +341,26 @@ export default function Movimientos() {
                     key={m.id}
                     className="hover:bg-orange-50 transition border-b border-slate-100"
                   >
-                    <td className="px-2 py-2">{new Date(m.fecha).toLocaleDateString('es-CO')}</td>
+                    <td className="px-2 py-2 text-[11px]">
+                      {new Date(m.fecha).toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: '2-digit' })}
+                    </td>
                     <td
-                      className={`px-2 py-2 font-semibold ${
+                      className={`px-2 py-2 font-semibold text-[11px] ${
                         m.tipo === "Ingreso" ? "text-green-600" : "text-red-600"
                       }`}
                     >
-                      {m.tipo}
+                      {m.tipo === "Ingreso"} {m.tipo}
                     </td>
-                    <td className="px-2 py-2 max-w-xs truncate">{m.descripcion}</td>
+                    <td className="px-2 py-2 truncate text-[11px]" title={m.descripcion}>{m.descripcion}</td>
                     <td
-                      className={`px-2 py-2 text-right font-semibold ${
+                      className={`px-2 py-2 text-right font-semibold text-[11px] ${
                         m.tipo === "Ingreso" ? "text-green-600" : "text-red-600"
                       }`}
                     >
-                      ${m.monto.toLocaleString('es-CO')}
+                      ${m.monto.toLocaleString('es-CO', { maximumFractionDigits: 0 })}
                     </td>
-                    <td className="px-2 py-2">{m.metodo}</td>
-                    <td className="px-2 py-2 max-w-xs truncate">{m.usuario}</td>
+                    <td className="px-2 py-2 text-[11px] truncate" title={m.metodo}>{m.metodo}</td>
+                    <td className="px-2 py-2 truncate text-[11px]" title={m.usuario}>{m.usuario}</td>
                   </tr>
                 ))
               ) : (
@@ -326,11 +400,12 @@ export default function Movimientos() {
 
       {/* ===== ACCIONES ===== */}
       <div className="flex justify-end gap-3 mt-6">
-        <button className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded text-sm shadow">
-          + Registrar Movimiento
-        </button>
-        <button className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded text-sm shadow">
-          Exportar Excel
+        <button 
+          onClick={handleExportarExcel}
+          className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm shadow-md transition flex items-center gap-2"
+        >
+          <Download size={16} />
+          Exportar a Excel
         </button>
       </div>
     </div>

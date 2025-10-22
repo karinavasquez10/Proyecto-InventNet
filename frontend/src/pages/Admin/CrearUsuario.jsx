@@ -1,5 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { UserPlus, Upload } from "lucide-react";
+import api from "../../api";
 
 export default function CrearUsuario({ onClose }) {
   const [formData, setFormData] = useState({
@@ -14,10 +15,28 @@ export default function CrearUsuario({ onClose }) {
     genero: "otro",
     cargo: "",
     estado: 1,
+    id_sucursal: 1,
   });
   const [foto, setFoto] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [sucursales, setSucursales] = useState([]);
+
+  // Cargar sucursales al montar el componente
+  useEffect(() => {
+    const fetchSucursales = async () => {
+      try {
+        const response = await api.get("/sucursales");
+        setSucursales(response.data);
+        if (response.data.length > 0) {
+          setFormData(prev => ({ ...prev, id_sucursal: response.data[0].id_sucursal }));
+        }
+      } catch (error) {
+        console.error("Error al cargar sucursales:", error);
+      }
+    };
+    fetchSucursales();
+  }, []);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -45,28 +64,56 @@ export default function CrearUsuario({ onClose }) {
       setError("Nombre, correo y contraseña son obligatorios");
       return;
     }
+    
+    if (formData.roles.length === 0) {
+      setError("Debe seleccionar al menos un rol");
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
+      
+      // Preparar datos para enviar
       const formDataToSend = new FormData();
       Object.keys(formData).forEach(key => {
         if (key === 'roles' && formData.roles.length > 0) {
-          formDataToSend.append(key, formData.roles.join(','));
+          // Enviar el rol principal (el primero seleccionado)
+          formDataToSend.append('rol', formData.roles[0]);
         } else if (key !== 'roles') {
           formDataToSend.append(key, formData[key]);
         }
       });
+      
       const fileInput = document.querySelector('input[type="file"]');
-      if (fileInput && fileInput.files[0]) formDataToSend.append('foto', fileInput.files[0]);
-
-      const res = await fetch("http://localhost:5000/api/perfil", {
-        method: "POST",
-        body: formDataToSend,
-      });
-      if (!res.ok) {
-        const errorText = await res.text();
-        throw new Error(errorText || "Error al crear usuario");
+      if (fileInput && fileInput.files[0]) {
+        formDataToSend.append('foto', fileInput.files[0]);
       }
+
+      console.log('[DEBUG] Creando usuario con rol:', formData.roles[0], 'y sucursal:', formData.id_sucursal);
+
+      // Crear usuario
+      const response = await api.post("/perfil", formDataToSend, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+
+      if (!response.data.id) {
+        throw new Error("No se recibió el ID del usuario creado");
+      }
+
+      const userId = response.data.id;
+      console.log('[DEBUG] Usuario creado con ID:', userId);
+
+      // Inicializar permisos automáticamente según el rol
+      try {
+        console.log('[DEBUG] Inicializando permisos para usuario:', userId);
+        await api.post(`/permisos/${userId}/inicializar`);
+        console.log('[DEBUG] Permisos inicializados exitosamente');
+      } catch (permError) {
+        console.warn('Advertencia: No se pudieron inicializar los permisos:', permError);
+        // No bloqueamos la creación del usuario si falla la inicialización de permisos
+      }
+
       // Reset form on success
       setFormData({
         nombre: "",
@@ -80,16 +127,21 @@ export default function CrearUsuario({ onClose }) {
         genero: "otro",
         cargo: "",
         estado: 1,
+        id_sucursal: sucursales.length > 0 ? sucursales[0].id_sucursal : 1,
       });
       setFoto(null);
       setError(null);
+      
+      // Mostrar mensaje de éxito
+      alert(`Usuario creado exitosamente con permisos inicializados para el rol: ${formData.roles[0]}`);
+      
       // Llamar a onClose SOLO aquí, después del éxito
       if (typeof onClose === 'function') {
         onClose();
       }
     } catch (err) {
       console.error("Error al crear usuario:", err);
-      setError(err.message);
+      setError(err.response?.data?.error || err.message || "Error al crear usuario");
     } finally {
       setLoading(false);
     }
@@ -248,6 +300,29 @@ export default function CrearUsuario({ onClose }) {
             />
           </div>
 
+          <div>
+            <label className="block text-sm font-semibold text-slate-600 mb-1">
+              Sucursal *
+            </label>
+            <select
+              name="id_sucursal"
+              value={formData.id_sucursal}
+              onChange={handleChange}
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-orange-200 focus:outline-none"
+              required
+            >
+              {sucursales.length === 0 ? (
+                <option value="">Cargando sucursales...</option>
+              ) : (
+                sucursales.map(s => (
+                  <option key={s.id_sucursal} value={s.id_sucursal}>
+                    {s.nombre} - {s.ciudad}
+                  </option>
+                ))
+              )}
+            </select>
+          </div>
+
           {/* Checks */}
           <div className="flex flex-col sm:flex-row gap-3 mt-3">
             <label className="flex items-center gap-2 text-sm text-slate-600">
@@ -266,7 +341,7 @@ export default function CrearUsuario({ onClose }) {
         {/* === Columna derecha: Roles (checkboxes) y otros === */}
         <div>
           <label className="block text-sm font-semibold text-slate-600 mb-2">
-            Roles de usuario
+            Roles de usuario *
           </label>
           <div className="space-y-2 mb-4">
             {['admin', 'cajero'].map(role => (
@@ -277,10 +352,13 @@ export default function CrearUsuario({ onClose }) {
                   onChange={() => handleRoleChange(role)}
                   className="h-4 w-4 text-orange-500" 
                 />
-                {role.charAt(0).toUpperCase() + role.slice(1)}
+                {role === 'admin' ? 'Administrador' : role.charAt(0).toUpperCase() + role.slice(1)}
               </label>
             ))}
           </div>
+          <p className="text-xs text-slate-500 mb-4">
+            Los permisos se asignarán automáticamente según el rol seleccionado
+          </p>
 
           <div className="space-y-2">
             <label className="block text-sm font-semibold text-slate-600 mb-1">

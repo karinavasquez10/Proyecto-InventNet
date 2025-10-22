@@ -1,5 +1,6 @@
 import express from "express";
 import pool from "../config/database.js";
+import { registrarAuditoria } from "../utils/auditoria.js";
 
 const router = express.Router();
 
@@ -37,6 +38,23 @@ router.post('/', async (req, res) => {
 
         const [rows] = await pool.query('SELECT * FROM movimientos_caja WHERE id_movimiento = ?', [result.insertId]);
         console.log(`Movimiento registrado: ID ${result.insertId}, tipo ${tipo}, monto ${monto}`);
+
+        // Registrar auditoría de movimiento de caja
+        await registrarAuditoria({
+            id_usuario: req.user?.id || 1,
+            accion: 'Registro de movimiento de caja',
+            tabla_nombre: 'movimientos_caja',
+            registro_id: result.insertId,
+            detalles: {
+                id_movimiento: result.insertId,
+                id_caja,
+                tipo,
+                descripcion: descripcion || '',
+                monto
+            },
+            req
+        });
+
         res.status(201).json(rows[0]);
     } catch (error) {
         console.error('Error al registrar movimiento:', error);

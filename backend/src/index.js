@@ -16,6 +16,10 @@ import papeleraRoutes from "./routes/papelera.js";
 import indicadoresRoutes from "./routes/indicadores.js";
 import comprasRoutes from "./routes/compras.js";
 import unidadesmedidaRoutes from "./routes/unidadesMedida.js";
+import permisosRoutes from "./routes/permisos.js";
+import auditoriaRoutes from "./routes/auditoria.js";
+import mermasRoutes from "./routes/mermas.js";
+import { iniciarCronJobCambiosAutomaticos } from "./jobs/procesarCambiosAutomaticos.js";
 
 dotenv.config();
 
@@ -41,7 +45,10 @@ app.use("/api/proveedores", proveedoresRoutes);
 app.use("/api/papelera", papeleraRoutes);
 app.use("/api/indicadores", indicadoresRoutes);
 app.use("/api/compras", comprasRoutes);
-app.use("/api/unidadesMedida", unidadesmedidaRoutes)
+app.use("/api/unidadesMedida", unidadesmedidaRoutes);
+app.use("/api/permisos", permisosRoutes);
+app.use("/api/auditoria", auditoriaRoutes);
+app.use("/api/mermas", mermasRoutes);
 
 // Añade un manejador de errores general
 app.use((err, req, res, next) => {
@@ -53,4 +60,9 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Servidor backend en http://localhost:${PORT}`));
+app.listen(PORT, () => {
+  console.log(`Servidor backend en http://localhost:${PORT}`);
+  
+  // Iniciar cron job para procesamiento automático de cambios
+  iniciarCronJobCambiosAutomaticos();
+});

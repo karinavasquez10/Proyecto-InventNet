@@ -2,6 +2,7 @@
 import { Router } from "express";
 import jwt from "jsonwebtoken";
 import pool from "../config/database.js"; // conexión MySQL
+import { registrarAuditoria } from "../utils/auditoria.js";
 
 const router = Router();
 
@@ -31,6 +32,17 @@ router.post("/login", async (req, res) => {
 
     if (rows.length === 0) {
       console.log(`Login fallido: Usuario no encontrado para email ${email}`);
+      
+      // Registrar intento fallido de login
+      await registrarAuditoria({
+        id_usuario: null,
+        accion: 'LOGIN fallido - Usuario no encontrado',
+        tabla_nombre: 'usuarios',
+        registro_id: null,
+        detalles: { email_intentado: email },
+        req
+      });
+      
       return res.status(401).json({ error: "Usuario no encontrado o inactivo" });
     }
 
@@ -39,6 +51,17 @@ router.post("/login", async (req, res) => {
     // Comparación de contraseña (simple por ahora; considera bcrypt en producción)
     if (password !== user.contrasena) {
       console.log(`Login fallido: Contraseña incorrecta para email ${email}`);
+      
+      // Registrar intento fallido por contraseña incorrecta
+      await registrarAuditoria({
+        id_usuario: user.id_usuario,
+        accion: 'LOGIN fallido - Contraseña incorrecta',
+        tabla_nombre: 'usuarios',
+        registro_id: user.id_usuario,
+        detalles: { email: user.correo },
+        req
+      });
+      
       return res.status(401).json({ error: "Contraseña incorrecta" });
     }
 
@@ -55,6 +78,20 @@ router.post("/login", async (req, res) => {
     );
 
     console.log(`Login exitoso para usuario ${user.nombre} (${user.rol})`);
+
+    // Registrar auditoría de login exitoso
+    await registrarAuditoria({
+      id_usuario: user.id_usuario,
+      accion: 'LOGIN exitoso',
+      tabla_nombre: 'usuarios',
+      registro_id: user.id_usuario,
+      detalles: {
+        email: user.correo,
+        rol: user.rol,
+        nombre: user.nombre
+      },
+      req
+    });
 
     res.json({
       token,

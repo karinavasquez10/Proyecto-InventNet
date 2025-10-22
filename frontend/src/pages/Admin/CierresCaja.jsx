@@ -205,7 +205,7 @@ export default function CierresCaja() {
             <Calculator size={16} className="text-red-500" />
             <p>
               Total Descuadre:{" "}
-              <span className="font-bold text-red-600">
+              <span className="font-bold text-blue-600">
                 ${totalDescuadre.toLocaleString()}
               </span>
             </p>
@@ -237,94 +237,72 @@ export default function CierresCaja() {
             </div>
           </div>
 
-          <div
-            className="w-full flex justify-center items-center mb-4"
-            style={{
-              overflowX: "hidden",
-            }}
-          >
-            <table className="w-full text-xs sm:text-sm border border-slate-200 rounded-lg overflow-hidden max-w-full">
+          <div className="w-full overflow-x-auto -mx-6 px-6">
+            <table className="min-w-full text-xs border border-slate-200 rounded-lg">
               <thead className="bg-gradient-to-r from-orange-400/80 to-fuchsia-400/80 text-white">
                 <tr className="text-left">
-                  {[
-                    "Fecha Comienzo",
-                    "Hora Comienzo",
-                    "Fecha Cierre",
-                    "Hora Cierre",
-                    "Num Cierre",
-                    "Cajero",
-                    "Cobros Efectivo",
-                    "Base Caja",
-                    "Efectivo Teórico",
-                    "Descuadre",
-                    "Sucursal",
-                  ].map((col) => (
-                    <th
-                      key={col}
-                      className="px-2 py-2 border text-[11px] sm:text-xs font-semibold uppercase tracking-wide text-center"
-                    >
-                      {col}
-                    </th>
-                  ))}
+                  <th className="px-2 py-2 border text-[11px] font-semibold uppercase tracking-wide whitespace-nowrap w-[85px]">F. Apertura</th>
+                  <th className="px-2 py-2 border text-[11px] font-semibold uppercase tracking-wide whitespace-nowrap w-[85px]">F. Cierre</th>
+                  <th className="px-2 py-2 border text-[11px] font-semibold uppercase tracking-wide text-center whitespace-nowrap w-[60px]">N°</th>
+                  <th className="px-2 py-2 border text-[11px] font-semibold uppercase tracking-wide whitespace-nowrap w-[100px]">Cajero</th>
+                  <th className="px-2 py-2 border text-[11px] font-semibold uppercase tracking-wide text-right whitespace-nowrap w-[90px]">Ventas</th>
+                  <th className="px-2 py-2 border text-[11px] font-semibold uppercase tracking-wide text-right whitespace-nowrap w-[85px]">Base</th>
+                  <th className="px-2 py-2 border text-[11px] font-semibold uppercase tracking-wide text-right whitespace-nowrap w-[90px]">Teórico</th>
+                  <th className="px-2 py-2 border text-[11px] font-semibold uppercase tracking-wide text-right whitespace-nowrap w-[85px]">Descuadre</th>
+                  <th className="px-2 py-2 border text-[11px] font-semibold uppercase tracking-wide whitespace-nowrap w-[80px]">Sucursal</th>
                 </tr>
               </thead>
               <tbody>
                 {paginatedCajas.length > 0 ? (
-                  paginatedCajas.map((c) => (
-                    <tr
-                      key={c.id_caja}
-                      className="border-b border-orange-100 hover:bg-orange-50 transition text-center"
-                    >
-                      <td className="px-2 py-2 border">
-                        {new Date(c.fecha_apertura).toLocaleDateString("es-ES")}
-                      </td>
-                      <td className="px-2 py-2 border">
-                        {new Date(c.fecha_apertura).toLocaleTimeString("es-ES", {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </td>
-                      <td className="px-2 py-2 border">
-                        {new Date(c.fecha_cierre).toLocaleDateString("es-ES")}
-                      </td>
-                      <td className="px-2 py-2 border">
-                        {new Date(c.fecha_cierre).toLocaleTimeString("es-ES", {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </td>
-                      <td className="px-2 py-2 border font-mono">
-                        {c.id_caja.toString().padStart(3, "0")}
-                      </td>
-                      <td className="px-2 py-2 border max-w-xs truncate">
-                        {c.nombre_usuario || "N/A"}
-                      </td>
-                      <td className="px-2 py-2 border text-right">
-                        ${parseFloat(c.total_ventas || 0).toLocaleString()}
-                      </td>
-                      <td className="px-2 py-2 border text-right">
-                        ${parseFloat(c.monto_inicial || 0).toLocaleString()}
-                      </td>
-                      <td className="px-2 py-2 border text-right">
-                        ${parseFloat(c.monto_final || 0).toLocaleString()}
-                      </td>
-                      <td
-                        className={`px-2 py-2 border text-right font-semibold ${
-                          parseFloat(c.diferencia || 0) >= 0
-                            ? "text-green-600"
-                            : "text-red-600"
-                        }`}
+                  paginatedCajas.map((c) => {
+                    const fechaApertura = new Date(c.fecha_apertura);
+                    const fechaCierre = new Date(c.fecha_cierre);
+                    return (
+                      <tr
+                        key={c.id_caja}
+                        className="border-b border-orange-100 hover:bg-orange-50 transition"
                       >
-                        ${parseFloat(c.diferencia || 0).toLocaleString()}
-                      </td>
-                      <td className="px-2 py-2 border">
-                        {c.nombre_sucursal || "N/A"}
-                      </td>
-                    </tr>
-                  ))
+                        <td className="px-2 py-2 border text-[11px]">
+                          {fechaApertura.toLocaleDateString("es-ES", { day: '2-digit', month: '2-digit' })}<br/>
+                          <span className="text-slate-500">{fechaApertura.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}</span>
+                        </td>
+                        <td className="px-2 py-2 border text-[11px]">
+                          {fechaCierre.toLocaleDateString("es-ES", { day: '2-digit', month: '2-digit' })}<br/>
+                          <span className="text-slate-500">{fechaCierre.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}</span>
+                        </td>
+                        <td className="px-2 py-2 border font-mono text-center text-[11px]">
+                          {c.id_caja.toString().padStart(3, "0")}
+                        </td>
+                        <td className="px-2 py-2 border text-[11px] truncate" title={c.nombre_usuario}>
+                          {c.nombre_usuario || "N/A"}
+                        </td>
+                        <td className="px-2 py-2 border text-right text-[11px]">
+                          ${parseFloat(c.total_ventas || 0).toLocaleString('es-ES', { maximumFractionDigits: 0 })}
+                        </td>
+                        <td className="px-2 py-2 border text-right text-[11px]">
+                          ${parseFloat(c.monto_inicial || 0).toLocaleString('es-ES', { maximumFractionDigits: 0 })}
+                        </td>
+                        <td className="px-2 py-2 border text-right text-[11px]">
+                          ${parseFloat(c.monto_final || 0).toLocaleString('es-ES', { maximumFractionDigits: 0 })}
+                        </td>
+                        <td
+                          className={`px-2 py-2 border text-right font-semibold text-[11px] ${
+                            parseFloat(c.diferencia || 0) >= 0
+                              ? "text-green-600"
+                              : "text-red-600"
+                          }`}
+                        >
+                          ${parseFloat(c.diferencia || 0).toLocaleString('es-ES', { maximumFractionDigits: 0 })}
+                        </td>
+                        <td className="px-2 py-2 border text-[11px] truncate" title={c.nombre_sucursal}>
+                          {c.nombre_sucursal || "N/A"}
+                        </td>
+                      </tr>
+                    );
+                  })
                 ) : (
                   <tr>
-                    <td colSpan="11" className="text-center py-8 text-slate-400 text-sm">
+                    <td colSpan="9" className="text-center py-8 text-slate-400 text-sm">
                       <div className="flex flex-col items-center gap-2">
                         <ArchiveX size={32} className="text-slate-300" />
                         <p>No se encontraron registros.</p>

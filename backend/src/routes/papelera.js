@@ -1,6 +1,7 @@
 // routes/papelera.js (actualizado: soporte para 'productos' en restore/delete)
 import express from 'express';
 import db from '../config/database.js';
+import { registrarAuditoria } from '../utils/auditoria.js';
 
 const router = express.Router();
 
@@ -142,6 +143,20 @@ router.post('/restore/:id_papelera', async (req, res) => {
     // Eliminar de papelera
     await db.query('DELETE FROM papelera WHERE id_papelera = ?', [id_papelera]);
 
+    // Registrar auditoría de restauración desde papelera
+    await registrarAuditoria({
+      id_usuario: req.user?.id || 1,
+      accion: `Restauración desde papelera`,
+      tabla_nombre: tabla,
+      registro_id: registro_id,
+      detalles: {
+        tabla_origen: tabla,
+        id_papelera,
+        contenido_restaurado: parsed
+      },
+      req
+    });
+
     res.json({ message: 'Elemento restaurado exitosamente' });
   } catch (err) {
     console.error('Error al restaurar:', err);
@@ -195,6 +210,20 @@ router.delete('/:id_papelera', async (req, res) => {
 
     // Eliminar de papelera
     await db.query('DELETE FROM papelera WHERE id_papelera = ?', [id_papelera]);
+
+    // Registrar auditoría de eliminación definitiva desde papelera
+    await registrarAuditoria({
+      id_usuario: req.user?.id || 1,
+      accion: `Eliminación definitiva desde papelera`,
+      tabla_nombre: tabla,
+      registro_id: registro_id,
+      detalles: {
+        tabla_origen: tabla,
+        id_papelera,
+        eliminacion_permanente: true
+      },
+      req
+    });
 
     res.json({ message: 'Elemento eliminado definitivamente' });
   } catch (err) {

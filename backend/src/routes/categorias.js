@@ -1,6 +1,7 @@
 // routes/categorias.js (actualizado con DELETE que envía a papelera e inhabilita productos)
 import { Router } from "express";
 import pool from '../config/database.js';
+import { registrarAuditoria } from '../utils/auditoria.js';
 
 const router = Router();
 
@@ -67,6 +68,21 @@ router.post('/', async (req, res) => {
       [nombre, descripcion || null, parseFloat(impuesto)]
     );
     const nuevaCategoria = { id_categoria: result.insertId, nombre, descripcion: descripcion || null, impuesto: parseFloat(impuesto) };
+
+    // Registrar auditoría de creación de categoría
+    await registrarAuditoria({
+      id_usuario: req.user?.id || 1,
+      accion: 'Creación de categoría',
+      tabla_nombre: 'categorias',
+      registro_id: result.insertId,
+      detalles: {
+        nombre,
+        descripcion: descripcion || null,
+        impuesto: parseFloat(impuesto)
+      },
+      req
+    });
+
     res.status(201).json(nuevaCategoria);
   } catch (error) {
     console.error(error);
@@ -93,6 +109,21 @@ router.put('/:id', async (req, res) => {
     if (result.affectedRows === 0) {
       return res.status(404).json({ message: 'Categoría no encontrada' });
     }
+
+    // Registrar auditoría de actualización de categoría
+    await registrarAuditoria({
+      id_usuario: req.user?.id || 1,
+      accion: 'Actualización de categoría',
+      tabla_nombre: 'categorias',
+      registro_id: id,
+      detalles: {
+        nombre,
+        descripcion: descripcion || null,
+        impuesto: parseFloat(impuesto || 0)
+      },
+      req
+    });
+
     res.json({ message: 'Categoría actualizada exitosamente' });
   } catch (error) {
     console.error(error);
@@ -148,6 +179,23 @@ router.delete('/:id', async (req, res) => {
     console.log(`Inhabilitados ${prodResult.affectedRows} productos.`);
 
     await connection.commit();
+
+    // Registrar auditoría de eliminación de categoría
+    await registrarAuditoria({
+      id_usuario: deletedBy,
+      accion: 'Eliminación de categoría (soft delete)',
+      tabla_nombre: 'categorias',
+      registro_id: id,
+      detalles: {
+        nombre: categoria.nombre,
+        descripcion: categoria.descripcion,
+        impuesto: categoria.impuesto,
+        productos_inhabilitados: prodResult.affectedRows,
+        movido_a_papelera: true
+      },
+      req
+    });
+
     res.json({ 
       message: 'Categoría eliminada exitosamente', 
       papelera_id: papeleraResult.insertId,

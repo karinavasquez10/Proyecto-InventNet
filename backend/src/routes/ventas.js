@@ -1,5 +1,6 @@
 import express from "express";
 import pool from "../config/database.js";
+import { registrarAuditoria } from "../utils/auditoria.js";
 
 const router = express.Router();
 
@@ -147,6 +148,26 @@ router.post('/', async (req, res) => {
         }
 
         await connection.commit();
+
+        // Registrar auditoría de creación de venta
+        await registrarAuditoria({
+            id_usuario: id_usuario,
+            accion: 'Creación de venta',
+            tabla_nombre: 'ventas',
+            registro_id: id_venta,
+            detalles: {
+                id_venta,
+                total,
+                subtotal,
+                impuesto,
+                metodo_pago: metodo_pago || 'efectivo',
+                cantidad_items: items.length,
+                id_cliente: id_cliente || null,
+                id_caja: id_caja || null,
+                es_venta_manual: !id_caja
+            },
+            req
+        });
 
         res.status(201).json({
             success: true,

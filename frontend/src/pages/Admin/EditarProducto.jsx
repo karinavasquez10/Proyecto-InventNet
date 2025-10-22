@@ -15,6 +15,16 @@ export default function EditarProducto({ producto, onClose, onSave, categorias =
       alert("Completa los campos obligatorios");
       return;
     }
+
+    // Validación de campos de cambio automático
+    if (
+      (parseInt(formData.cambia_estado) === 1 || parseInt(formData.cambia_apariencia) === 1) &&
+      (!formData.tiempo_cambio || parseInt(formData.tiempo_cambio) <= 0)
+    ) {
+      alert("Si el producto cambia de estado o apariencia, debes especificar el tiempo de cambio en días (mayor a 0).");
+      return;
+    }
+
     onSave(formData);
   };
 
@@ -149,6 +159,69 @@ export default function EditarProducto({ producto, onClose, onSave, categorias =
               />
               <label className="text-sm text-slate-700">Activo</label>
             </div>
+          </div>
+
+          {/* === Configuración de Cambio Automático === */}
+          <div className="space-y-3 mt-5 pt-5 border-t border-slate-200">
+            <h3 className="text-md font-semibold text-slate-700 flex items-center gap-2">
+              <Tag size={16} className="text-sky-500" />
+              Cambio Automático
+            </h3>
+
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="block text-sm text-slate-600 mb-1">
+                  ¿Cambia de estado?
+                </label>
+                <select
+                  value={formData.cambia_estado || 0}
+                  onChange={(e) => handleChange("cambia_estado", parseInt(e.target.value))}
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-sky-200"
+                >
+                  <option value={0}>No</option>
+                  <option value={1}>Sí</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm text-slate-600 mb-1">
+                  ¿Cambia de apariencia?
+                </label>
+                <select
+                  value={formData.cambia_apariencia || 0}
+                  onChange={(e) => handleChange("cambia_apariencia", parseInt(e.target.value))}
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-sky-200"
+                >
+                  <option value={0}>No</option>
+                  <option value={1}>Sí</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm text-slate-600 mb-1">
+                  Tiempo (días)
+                  {(formData.cambia_estado === 1 || formData.cambia_apariencia === 1) && 
+                    <span className="text-rose-500 ml-1">*</span>}
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  value={formData.tiempo_cambio || ""}
+                  onChange={(e) => handleChange("tiempo_cambio", e.target.value ? parseInt(e.target.value) : null)}
+                  placeholder="Ej: 5"
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-sky-200"
+                />
+              </div>
+            </div>
+
+            {(formData.cambia_estado === 1 || formData.cambia_apariencia === 1) && 
+              !formData.tiempo_cambio && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-2">
+                <p className="text-xs text-amber-700">
+                  ⚠️ Debes especificar el tiempo de cambio en días.
+                </p>
+              </div>
+            )}
           </div>
         </div>
 

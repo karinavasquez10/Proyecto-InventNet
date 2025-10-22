@@ -34,6 +34,9 @@ export default function RegistroProductos() {
     stock_actual: "",
     stock_minimo: "",
     stock_maximo: "",
+    cambia_estado: 0,
+    cambia_apariencia: 0,
+    tiempo_cambio: "",
   });
 
   // Función helper para fetch con URLs absolutas y mejor manejo de errores
@@ -123,6 +126,15 @@ export default function RegistroProductos() {
       return;
     }
 
+    // Validación de campos de cambio automático
+    if (
+      (parseInt(formData.cambia_estado) === 1 || parseInt(formData.cambia_apariencia) === 1) &&
+      (!formData.tiempo_cambio || parseInt(formData.tiempo_cambio) <= 0)
+    ) {
+      alert("Si el producto cambia de estado o apariencia, debes especificar el tiempo de cambio en días (mayor a 0).");
+      return;
+    }
+
     try {
       const nuevoProducto = {
         nombre: formData.nombre.trim(),
@@ -135,6 +147,9 @@ export default function RegistroProductos() {
         stock_minimo: parseFloat(formData.stock_minimo),
         stock_maximo: parseFloat(formData.stock_maximo),
         estado: activo ? 1 : 0,
+        cambia_estado: parseInt(formData.cambia_estado),
+        cambia_apariencia: parseInt(formData.cambia_apariencia),
+        tiempo_cambio: formData.tiempo_cambio ? parseInt(formData.tiempo_cambio) : null,
       };
 
       const response = await fetch(`${API_BASE_URL}/api/products/productos`, {
@@ -161,6 +176,9 @@ export default function RegistroProductos() {
         stock_actual: "",
         stock_minimo: "",
         stock_maximo: "",
+        cambia_estado: 0,
+        cambia_apariencia: 0,
+        tiempo_cambio: "",
       });
       setActivo(true);
       // Recargar productos
@@ -378,6 +396,80 @@ export default function RegistroProductos() {
             </div>
           </div>
 
+          {/* === Configuración de Cambio Automático === */}
+          <div className="space-y-5 w-full mb-6">
+            <h2 className="text-lg font-semibold text-slate-700 flex items-center gap-2 border-b pb-2 border-slate-200">
+              <Tag size={18} className="text-sky-500" />
+              Configuración de Cambio Automático
+            </h2>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-slate-600 mb-1">
+                  ¿Cambia de estado? (Vencimiento)
+                </label>
+                <select
+                  value={formData.cambia_estado}
+                  onChange={(e) => handleChange("cambia_estado", e.target.value)}
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-sky-200"
+                >
+                  <option value={0}>No</option>
+                  <option value={1}>Sí</option>
+                </select>
+                <p className="text-xs text-slate-500 mt-1">
+                  Productos que se vencen o pudren (ej: carne, frutas)
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-600 mb-1">
+                  ¿Cambia de apariencia? (Transformación)
+                </label>
+                <select
+                  value={formData.cambia_apariencia}
+                  onChange={(e) => handleChange("cambia_apariencia", e.target.value)}
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-sky-200"
+                >
+                  <option value={0}>No</option>
+                  <option value={1}>Sí</option>
+                </select>
+                <p className="text-xs text-slate-500 mt-1">
+                  Productos que se transforman (ej: plátano verde → maduro)
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-600 mb-1">
+                  Tiempo de cambio (días)
+                  {(formData.cambia_estado === 1 || formData.cambia_estado === "1" || 
+                    formData.cambia_apariencia === 1 || formData.cambia_apariencia === "1") && 
+                    <span className="text-rose-500 ml-1">*</span>}
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  value={formData.tiempo_cambio}
+                  onChange={(e) => handleChange("tiempo_cambio", e.target.value)}
+                  placeholder="Ej: 5"
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-sky-200"
+                />
+                <p className="text-xs text-slate-500 mt-1">
+                  Días después de creado para activar el cambio
+                </p>
+              </div>
+            </div>
+
+            {(formData.cambia_estado === 1 || formData.cambia_estado === "1" || 
+              formData.cambia_apariencia === 1 || formData.cambia_apariencia === "1") && 
+              !formData.tiempo_cambio && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                <p className="text-sm text-amber-700">
+                  ⚠️ Si el producto cambia de estado o apariencia, debes especificar el tiempo de cambio en días.
+                </p>
+              </div>
+            )}
+          </div>
+
           {/* === Estado y Descripción === */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6 w-full">
             <div className="flex items-center gap-3">
@@ -422,6 +514,9 @@ export default function RegistroProductos() {
                   stock_actual: "",
                   stock_minimo: "",
                   stock_maximo: "",
+                  cambia_estado: 0,
+                  cambia_apariencia: 0,
+                  tiempo_cambio: "",
                 });
                 setActivo(true);
               }}

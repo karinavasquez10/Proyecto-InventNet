@@ -1,6 +1,7 @@
 // routes/products.js (actualizado: PUT editar, DELETE soft-delete con papelera)
 import express from "express";
 import pool from "../config/database.js";
+import { registrarAuditoria } from "../utils/auditoria.js";
 
 const router = express.Router();
 
@@ -67,7 +68,10 @@ router.get('/productos/:id', async (req, res) => {
 // PUT /api/products/productos/:id - Editar producto
 router.put('/productos/:id', async (req, res) => {
   const { id } = req.params;
-  const { nombre, descripcion, id_categoria, id_unidad, precio_compra, precio_venta, stock_actual, stock_minimo, stock_maximo, estado } = req.body;
+  const { 
+    nombre, descripcion, id_categoria, id_unidad, precio_compra, precio_venta, 
+    stock_actual, stock_minimo, stock_maximo, estado, cambia_estado, cambia_apariencia, tiempo_cambio 
+  } = req.body;
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
@@ -76,15 +80,41 @@ router.put('/productos/:id', async (req, res) => {
       UPDATE productos 
       SET nombre = ?, descripcion = ?, id_categoria = ?, id_unidad = ?, 
           precio_compra = ?, precio_venta = ?, stock_actual = ?, 
-          stock_minimo = ?, stock_maximo = ?, estado = ?
+          stock_minimo = ?, stock_maximo = ?, estado = ?,
+          cambia_estado = ?, cambia_apariencia = ?, tiempo_cambio = ?
       WHERE id_producto = ? AND is_deleted = 0
-    `, [nombre, descripcion, id_categoria, id_unidad, parseFloat(precio_compra), parseFloat(precio_venta), parseFloat(stock_actual), parseFloat(stock_minimo), parseFloat(stock_maximo), estado ? 1 : 0, id]);
+    `, [
+      nombre, descripcion, id_categoria, id_unidad, 
+      parseFloat(precio_compra), parseFloat(precio_venta), parseFloat(stock_actual), 
+      parseFloat(stock_minimo), parseFloat(stock_maximo), estado ? 1 : 0,
+      cambia_estado !== undefined ? parseInt(cambia_estado) : 0,
+      cambia_apariencia !== undefined ? parseInt(cambia_apariencia) : 0,
+      tiempo_cambio !== undefined && tiempo_cambio !== null ? parseInt(tiempo_cambio) : null,
+      id
+    ]);
 
     if (result.affectedRows === 0) {
       return res.status(404).json({ message: 'Producto no encontrado o ya eliminado' });
     }
 
     await connection.commit();
+    
+    // Registrar auditoría de actualización de producto
+    await registrarAuditoria({
+      id_usuario: req.user?.id || null,
+      accion: 'Actualización de producto',
+      tabla_nombre: 'productos',
+      registro_id: id,
+      detalles: {
+        nombre,
+        id_categoria,
+        precio_compra: parseFloat(precio_compra),
+        precio_venta: parseFloat(precio_venta),
+        stock_actual: parseFloat(stock_actual)
+      },
+      req
+    });
+    
     res.json({ message: 'Producto actualizado exitosamente' });
   } catch (error) {
     await connection.rollback();
@@ -145,7 +175,24 @@ router.delete('/productos/:id', async (req, res) => {
     );
 
     await connection.commit();
-    res.json({ message: 'Producto eliminado (movido a papelera)' });
+    
+    // Registrar auditoría de eliminación de producto
+    await registrarAuditoria({
+      id_usuario: deletedBy,
+      accion: 'Eliminación de producto (soft delete)',
+      tabla_nombre: 'productos',
+      registro_id: id,
+      detalles: {
+        nombre: producto.nombre,
+        categoria: producto.nombre_categoria,
+        precio_venta: producto.precio_venta,
+        stock_actual: producto.stock_actual,
+        movido_a_papelera: true
+      },
+      req
+    });
+    
+    res.json({ message: 'Producto eliminado y movido a papelera exitosamente' });
   } catch (error) {
     await connection.rollback();
     console.error('Error al eliminar producto:', error);
@@ -193,7 +240,10 @@ router.post('/update-stocks', async (req, res) => {
 
 // POST /api/products/productos - Crear nuevo producto
 router.post('/productos', async (req, res) => {
-  const { nombre, descripcion, id_categoria, id_unidad, precio_compra, precio_venta, stock_actual, stock_minimo, stock_maximo, estado } = req.body;
+  const { 
+    nombre, descripcion, id_categoria, id_unidad, precio_compra, precio_venta, 
+    stock_actual, stock_minimo, stock_maximo, estado, cambia_estado, cambia_apariencia, tiempo_cambio 
+  } = req.body;
   
   // Validaciones básicas
   if (!nombre || !id_categoria || !id_unidad) {
@@ -227,8 +277,9 @@ router.post('/productos', async (req, res) => {
       INSERT INTO productos (
         nombre, descripcion, id_categoria, id_unidad, 
         precio_compra, precio_venta, stock_actual, 
-        stock_minimo, stock_maximo, estado
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        stock_minimo, stock_maximo, estado,
+        cambia_estado, cambia_apariencia, tiempo_cambio
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
       nombre,
       descripcion || null,
@@ -239,10 +290,30 @@ router.post('/productos', async (req, res) => {
       parseFloat(stock_actual || 0),
       parseFloat(stock_minimo || 0),
       parseFloat(stock_maximo || 0),
-      estado ? 1 : 0
+      estado ? 1 : 0,
+      cambia_estado !== undefined ? parseInt(cambia_estado) : 0,
+      cambia_apariencia !== undefined ? parseInt(cambia_apariencia) : 0,
+      tiempo_cambio !== undefined && tiempo_cambio !== null ? parseInt(tiempo_cambio) : null
     ]);
 
     await connection.commit();
+    
+    // Registrar auditoría de creación de producto
+    await registrarAuditoria({
+      id_usuario: req.user?.id || null,
+      accion: 'Creación de producto',
+      tabla_nombre: 'productos',
+      registro_id: result.insertId,
+      detalles: {
+        nombre,
+        id_categoria,
+        precio_compra: parseFloat(precio_compra),
+        precio_venta: parseFloat(precio_venta),
+        stock_actual: parseFloat(stock_actual || 0)
+      },
+      req
+    });
+    
     res.status(201).json({ 
       message: 'Producto creado exitosamente', 
       id_producto: result.insertId 

@@ -48,11 +48,19 @@ export default function CalibrarProductos() {
   }, []);
 
   // Filtros
-  const productosFiltrados = productos.filter(
-    (p) =>
-      (filterCategoria === "Todas" || p.nombre_categoria === filterCategoria) &&
-      (p.nombre.toLowerCase().includes(buscar.toLowerCase()) || p.codigo.toLowerCase().includes(buscar.toLowerCase()))
-  );
+  const productosFiltrados = productos.filter((p) => {
+    // Filtro de categoría
+    const matchCategoria = filterCategoria === "Todas" || p.nombre_categoria === filterCategoria;
+    
+    // Filtro de búsqueda - buscar en nombre, código o ID
+    const searchTerm = buscar.toLowerCase().trim();
+    const matchBusqueda = !searchTerm || 
+      (p.nombre && p.nombre.toLowerCase().includes(searchTerm)) ||
+      (p.codigo && p.codigo.toLowerCase().includes(searchTerm)) ||
+      (p.id_producto && p.id_producto.toString().includes(searchTerm));
+    
+    return matchCategoria && matchBusqueda;
+  });
 
   const totalPages = Math.ceil(productosFiltrados.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
@@ -147,7 +155,7 @@ export default function CalibrarProductos() {
                   type="text"
                   value={buscar}
                   onChange={(e) => setBuscar(e.target.value)}
-                  placeholder="Nombre o código..."
+                  placeholder="Nombre, código o ID del producto..."
                   className="w-full pl-9 pr-4 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-orange-200"
                 />
               </div>

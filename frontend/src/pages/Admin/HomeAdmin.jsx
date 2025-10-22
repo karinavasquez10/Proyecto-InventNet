@@ -1,7 +1,7 @@
 // src/pages/HomeAdmin.jsx
 import React, { useState, useEffect } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { User, LogOut, Settings } from "lucide-react";
+import { User, LogOut, Settings, Bell, AlertTriangle, Clock, CheckCircle } from "lucide-react";
 
 // Variable de entorno con endpoint base - normalizamos y garantizamos el sufijo /api
 const RAW_API_URL = import.meta.env.VITE_API_URL || "";
@@ -91,6 +91,16 @@ export default function HomeAdmin() {
   const [openMenu, setOpenMenu] = useState(null);
   const [profilePhoto, setProfilePhoto] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
+  const [userPermisos, setUserPermisos] = useState({});
+  const [permisosLoaded, setPermisosLoaded] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [notificaciones, setNotificaciones] = useState({ 
+    mermas_automaticas: [], 
+    productos_por_cambiar: [], 
+    productos_stock_bajo: [],
+    total_notificaciones: 0 
+  });
+  const [notificacionesNoLeidas, setNotificacionesNoLeidas] = useState(0);
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -179,69 +189,143 @@ export default function HomeAdmin() {
     return () => window.removeEventListener("profilePhotoUpdated", handlePhotoUpdate);
   }, [admin.id, storedUser, cloudName]);
 
+  // Cargar permisos del usuario
+  useEffect(() => {
+    const loadPermisos = async () => {
+      if (!admin.id) return;
+      
+      try {
+        const response = await fetch(`${API}/permisos/${admin.id}`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('authToken') || ''}`,
+          }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          setUserPermisos(data);
+          console.log('[HomeAdmin] Permisos cargados:', data);
+        }
+      } catch (error) {
+        console.error('[HomeAdmin] Error al cargar permisos:', error);
+      } finally {
+        setPermisosLoaded(true);
+      }
+    };
+
+    loadPermisos();
+  }, [admin.id]);
+
+  // Cargar notificaciones de cambios automáticos y stock bajo
+  useEffect(() => {
+    const loadNotificaciones = async () => {
+      try {
+        const response = await fetch(`${API}/mermas/notificaciones?horas=24`);
+        if (response.ok) {
+          const data = await response.json();
+          setNotificaciones(data);
+          
+          // Cargar contador de no leídas desde localStorage
+          const ultimaVista = localStorage.getItem('ultimaVistaNotificaciones');
+          const totalActual = data.total_notificaciones;
+          
+          if (!ultimaVista) {
+            // Primera vez, todas son no leídas
+            setNotificacionesNoLeidas(totalActual);
+          } else {
+            const ultimaVistaNum = parseInt(ultimaVista, 10);
+            // Si hay más notificaciones que la última vista, son nuevas
+            const nuevas = Math.max(0, totalActual - ultimaVistaNum);
+            setNotificacionesNoLeidas(nuevas);
+          }
+        }
+      } catch (error) {
+        console.error('[HomeAdmin] Error al cargar notificaciones:', error);
+      }
+    };
+
+    loadNotificaciones();
+    // Recargar notificaciones cada 5 minutos
+    const interval = setInterval(loadNotificaciones, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
+  
+  // Marcar notificaciones como leídas cuando se abre el panel
+  const handleAbrirNotificaciones = () => {
+    setShowNotifications(true);
+    // Guardar el total actual como "visto"
+    localStorage.setItem('ultimaVistaNotificaciones', notificaciones.total_notificaciones.toString());
+    // Resetear contador de no leídas
+    setNotificacionesNoLeidas(0);
+  };
+
   const menuItems = [
     {
       label: "Productos",
       children: [
-        { name: "Gestión de Categorías", path: "GestionCategorias" },
-        { name: "Cargue Masivo de Productos", path: "CargueMasivo" },
-        { name: "Productos Recogidos", path: "ProductosRecogidos" },
-        { name: "Compras", path: "RegistroCompras" },
-        { name: "Lista de Precios", path: "ListaPrecios" },
-        { name: "Productos por Calibrar", path: "CalibrarProductos" },
-        { name: "Registro de Productos", path: "RegistroProductos" },
+        { name: "Gestión de Categorías", path: "GestionCategorias", moduloId: "gestion_categorias" },
+        { name: "Gestión Mermas", path: "ProductosRecogidos", moduloId: "productos_recogidos" },
+        { name: "Compras", path: "RegistroCompras", moduloId: "registro_compras" },
+        { name: "Lista de Precios", path: "ListaPrecios", moduloId: "lista_precios" },
+        { name: "Productos por Calibrar", path: "CalibrarProductos", moduloId: "calibrar_productos" },
+        { name: "Registro de Productos", path: "RegistroProductos", moduloId: "registro_productos" },
       ],
     },
     {
       label: "Ventas",
       children: [
-        { name: "Consultar Ventas", path: "ConsultarVentas" },
-        { name: "Cierres de Caja", path: "CierresCaja" },
-        { name: "Cotizaciones", path: "Cotizaciones" },
-        { name: "Registro de Ventas", path: "RegistroVentas" },
-      ],
-    },
-    {
-      label: "Materias primas",
-      children: [
-        { name: "Entradas", path: "Entradas" },
-        { name: "Salidas", path: "Salidas" },
+        { name: "Consultar Ventas", path: "ConsultarVentas", moduloId: "consultar_ventas" },
+        { name: "Cierres de Caja", path: "CierresCaja", moduloId: "cierres_caja" },
+        { name: "Registro de Ventas", path: "RegistroVentas", moduloId: "registro_ventas" },
       ],
     },
     {
       label: "Bodegas",
       children: [
-        { name: "Consulta Inventario", path: "ConsultaInventarioProductos" },
-        { name: "Movimientos", path: "Movimientos" },
+        { name: "Consulta Inventario", path: "ConsultaInventarioProductos", moduloId: "consulta_inventario" },
+        { name: "Movimientos", path: "Movimientos", moduloId: "movimientos" },
       ],
     },
     {
       label: "Gestión sedes",
-      children: [{ name: "Sede Principal", path: "SedePrincipal" }],
+      children: [{ name: "Sucursales", path: "SedePrincipal", moduloId: "sede_principal" }],
     },
     {
       label: "Usuarios",
       children: [
-        { name: "Crear Usuario", path: "CrearUsuario" },
-        { name: "Buscar Usuario", path: "BuscarUsuarios" },
+        { name: "Crear Usuario", path: "CrearUsuario", moduloId: "crear_usuario" },
+        { name: "Buscar Usuario", path: "BuscarUsuarios", moduloId: "buscar_usuarios" },
       ],
     },
     {
       label: "Clientes",
       children: [
-        { name: "Gestión de Clientes", path: "GestionClientes" },
-        { name: "Indicadores", path: "Indicadores" },
+        { name: "Gestión de Clientes", path: "GestionClientes", moduloId: "gestion_clientes" },
+        { name: "Indicadores", path: "Indicadores", moduloId: "indicadores" },
       ],
     },
     {
       label: "Proveedores",
-      children: [{ name: "Gestión de Proveedores", path: "GestionProveedores" }],
+      children: [{ name: "Gestión de Proveedores", path: "GestionProveedores", moduloId: "gestion_proveedores" }],
     },
     {
       label: "Papelera",
-      children: [{ name: "Gestión de Papelera", path: "GestionPapelera" }],
+      children: [{ name: "Gestión de Papelera", path: "GestionPapelera", moduloId: "gestion_papelera" }],
     },
   ];
+
+  // Filtrar menú según permisos del usuario
+  const filteredMenuItems = menuItems.map(category => ({
+    ...category,
+    children: category.children.filter(child => {
+      // Si no hay moduloId, mostrar por defecto (para compatibilidad)
+      if (!child.moduloId) return true;
+      // Si no se han cargado los permisos aún, no mostrar nada
+      if (!permisosLoaded) return false;
+      // Mostrar solo si el usuario tiene permiso
+      return userPermisos[child.moduloId] === true;
+    })
+  })).filter(category => category.children.length > 0); // Eliminar categorías vacías
 
   const isDashboard = location.pathname === "/HomeAdmin";
 
@@ -267,7 +351,7 @@ export default function HomeAdmin() {
 
         {/* Menú lateral */}
         <nav className="flex-1 overflow-y-auto p-3">
-          {menuItems.map((item, idx) => (
+          {filteredMenuItems.map((item, idx) => (
             <div key={idx} className="mb-2">
               <button
                 onClick={() => setOpenMenu(openMenu === idx ? null : idx)}
@@ -357,13 +441,147 @@ export default function HomeAdmin() {
             {/* Fecha y hora en tiempo real: solo lo refresca FechaHoraActual */}
             <FechaHoraActual />
             <div className="flex items-center gap-3 relative">
+              {/* Botón de notificaciones */}
+              <div className="relative">
+                <button
+                  onClick={handleAbrirNotificaciones}
+                  className="relative text-white bg-gradient-to-r from-purple-500 to-indigo-500 px-3 py-1.5 rounded text-sm shadow hover:brightness-110 flex items-center gap-2"
+                >
+                  <Bell size={16} />
+                  {notificacionesNoLeidas > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center animate-pulse">
+                      {notificacionesNoLeidas}
+                    </span>
+                  )}
+                </button>
+                
+                {/* Panel de notificaciones */}
+                {showNotifications && (
+                  <div className="absolute right-0 mt-2 w-96 bg-white border border-slate-200 rounded-lg shadow-xl overflow-hidden z-50 max-h-[500px] overflow-y-auto">
+                    <div className="bg-gradient-to-r from-purple-500 to-indigo-500 text-white px-4 py-3 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Bell size={18} />
+                        <span className="font-semibold">Notificaciones del Sistema</span>
+                      </div>
+                      <button
+                        onClick={() => setShowNotifications(false)}
+                        className="text-white hover:bg-white/20 rounded p-1 transition"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                    
+                    {/* Mermas automáticas */}
+                    {notificaciones.mermas_automaticas && notificaciones.mermas_automaticas.length > 0 && (
+                      <div className="border-b border-slate-200">
+                        <div className="px-4 py-2 bg-slate-50 text-xs font-semibold text-slate-600">
+                          MERMAS AUTOMÁTICAS (24h)
+                        </div>
+                        {notificaciones.mermas_automaticas.map((item, idx) => (
+                          <div key={idx} className="px-4 py-3 hover:bg-slate-50 transition border-b border-slate-100">
+                            <div className="flex items-start gap-2">
+                              <div className="bg-red-100 p-1.5 rounded">
+                                <AlertTriangle size={14} className="text-red-600" />
+                              </div>
+                              <div className="flex-1">
+                                <div className="text-sm font-medium text-slate-800">{item.producto}</div>
+                                <div className="text-xs text-slate-600 mt-1">
+                                  Pérdida: <span className="font-semibold text-red-600">-{item.cantidad}</span> unidades
+                                </div>
+                                <div className="text-xs text-slate-500 mt-1">
+                                  {new Date(item.fecha).toLocaleString('es-CO')}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    
+                    {/* Productos por cambiar */}
+                    {notificaciones.productos_por_cambiar && notificaciones.productos_por_cambiar.length > 0 && (
+                      <div>
+                        <div className="px-4 py-2 bg-slate-50 text-xs font-semibold text-slate-600">
+                          PRÓXIMOS CAMBIOS
+                        </div>
+                        {notificaciones.productos_por_cambiar.map((item, idx) => (
+                          <div key={idx} className="px-4 py-3 hover:bg-slate-50 transition border-b border-slate-100">
+                            <div className="flex items-start gap-2">
+                              <div className="bg-amber-100 p-1.5 rounded">
+                                <Clock size={14} className="text-amber-600" />
+                              </div>
+                              <div className="flex-1">
+                                <div className="text-sm font-medium text-slate-800">{item.producto}</div>
+                                <div className="text-xs text-amber-600 mt-1 font-semibold">
+                                  Cambiará en {item.dias_restantes} día(s)
+                                </div>
+                                <div className="text-xs text-slate-500 mt-1">
+                                  {item.cambia_estado && <span className="mr-2">🔴 Vencimiento</span>}
+                                  {item.cambia_apariencia && <span>🔄 Transformación</span>}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    
+                    {notificaciones.productos_stock_bajo && notificaciones.productos_stock_bajo.length > 0 && (
+                      <div>
+                        <div className="px-4 py-2 bg-slate-50 text-xs font-semibold text-slate-600">
+                          STOCK BAJO
+                        </div>
+                        {notificaciones.productos_stock_bajo.map((item, idx) => (
+                          <div key={idx} className="px-4 py-3 hover:bg-slate-50 transition border-b">
+                            <div className="flex items-start gap-2">
+                              <div className="bg-amber-100 p-1.5 rounded">
+                                <AlertTriangle size={14} className="text-amber-600" />
+                              </div>
+                              <div className="flex-1">
+                                <div className="text-sm font-medium text-slate-800">{item.producto}</div>
+                                <div className="text-xs text-amber-600 mt-1 font-semibold">
+                                  Stock: {item.stock_actual?.toFixed(1)} / {item.stock_minimo?.toFixed(1)}
+                                </div>
+                                <div className="text-xs text-slate-500 mt-1">
+                                  Nivel: {item.porcentaje}% del mínimo
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    
+                    {notificaciones.total_notificaciones === 0 && (
+                      <div className="px-4 py-8 text-center text-slate-400 text-sm">
+                        <CheckCircle size={32} className="mx-auto mb-2 opacity-30" />
+                        <p>No hay cambios recientes</p>
+                      </div>
+                    )}
+                    
+                    <div className="bg-slate-50 px-4 py-2 text-center">
+                      <Link
+                        to="ProductosRecogidos"
+                        onClick={() => setShowNotifications(false)}
+                        className="text-xs text-purple-600 hover:text-purple-800 font-medium"
+                      >
+                        Ver todas las mermas →
+                      </Link>
+                    </div>
+                  </div>
+                )}
+              </div>
+              
               <Link
                 to="/HomeAdmin"
                 className="text-white bg-gradient-to-r from-orange-500 to-fuchsia-500 px-3 py-1.5 rounded text-sm shadow hover:brightness-110"
               >
                 Home
               </Link>
-              <button className="text-white bg-amber-500 hover:bg-amber-600 px-3 py-1.5 rounded text-sm shadow">
+              <button 
+                onClick={() => window.location.reload()}
+                className="text-white bg-amber-500 hover:bg-amber-600 px-3 py-1.5 rounded text-sm shadow"
+              >
                 Actualizar
               </button>
               <div className="relative">
@@ -420,28 +638,33 @@ function DashboardContent() {
   const [ventasPorUsuario, setVentasPorUsuario] = useState([]);
   const [productos, setProductos] = useState([]);
   const [clientes, setClientes] = useState([]);
-  const [cajas, setCajas] = useState([]);
-  const [, setProveedores] = useState([]);
-  const [, setComprasMes] = useState(0);
+  const [comprasMes, setComprasMes] = useState(0);
+  const [mermasMes, setMermasMes] = useState(0);
   const [loading, setLoading] = useState(true);
   const [numCajeros, setNumCajeros] = useState(0);
-  const [, setCajerosActivosDetalle] = useState([]); // Nuevo: para mostrar lista real
+  const [, setCajerosActivosDetalle] = useState([]);
+  const [gananciasNetas, setGananciasNetas] = useState(0);
+  const [topProductos, setTopProductos] = useState([]);
+  const [bottomProductos, setBottomProductos] = useState([]);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // ===== Usuarios: obtener solo los "cajeros" activos desde la tabla usuarios (mover al inicio para filtrar ventas después)
+        // ===== Fetch paralelo para optimizar velocidad =====
+        const [ventasRes, productosRes, clientesRes, usuariosRes, comprasRes, mermasRes] = await Promise.all([
+          fetch(`${API}/ventas`),
+          fetch(`${API}/products/productos`),
+          fetch(`${API}/clientes`),
+          fetch(`${API}/perfil`),
+          fetch(`${API}/compras`),
+          fetch(`${API}/mermas`)
+        ]);
+
+        // ===== Procesar Usuarios/Cajeros =====
         let cajerosActivos = [];
         let usuariosArray = [];
-        try {
-          const resUsuarios = await fetch(`${API}/perfil`);
-          if (!resUsuarios.ok) {
-            throw new Error(`Error al obtener usuarios: ${resUsuarios.status}`);
-          } else {
-            usuariosArray = await resUsuarios.json();
-          }
-
-          // Filtrar usuarios con estado 1 y cargo/rol 'cajero'
+        if (usuariosRes.ok) {
+          usuariosArray = await usuariosRes.json();
           cajerosActivos = Array.isArray(usuariosArray)
             ? usuariosArray.filter(
                 (user) =>
@@ -452,145 +675,206 @@ function DashboardContent() {
                   )
               )
             : [];
-
           setNumCajeros(cajerosActivos.length);
-          setCajerosActivosDetalle(cajerosActivos); // Guardamos los datos completos
-          // Extraer nombres de cajeros activos para filtrar ventas
-          const activeCajerosNames = cajerosActivos.map((u) => u.nombre);
-          window.activeCajerosNames = activeCajerosNames; // Temporal para usar en ventas (mejor práctica: estado, pero para simplicidad)
-        } catch (err) {
-          console.error("Error al cargar usuarios/cajeros:", err);
-          setNumCajeros(0);
-          setCajerosActivosDetalle([]);
-          window.activeCajerosNames = []; // Fallback
+          setCajerosActivosDetalle(cajerosActivos);
         }
 
-        // ===== Ventas =====
+        // ===== Procesar Ventas y Detalles de Ventas (optimizado) =====
         let ventas = [];
-        try {
-          const resVentas = await fetch(`${API}/ventas`);
-          if (resVentas.ok) ventas = await resVentas.json();
-          else console.warn("No se pudo obtener /ventas:", resVentas.status);
-        } catch (e) {
-          console.warn("Error fetching ventas:", e);
-          ventas = [];
-        }
-        const month = new Date().getMonth();
-        // monedas y fechas pueden ser string, hay que procesar consistentemente
-        const ventasMesActual = ventas.filter(
-          (v) => {
+        let productStats = {};
+        let ventasMesActual = []; // Declarar aquí para acceso global
+        if (ventasRes.ok) {
+          ventas = await ventasRes.json();
+          const month = new Date().getMonth();
+          const year = new Date().getFullYear();
+          
+          // Filtrar ventas del mes actual
+          ventasMesActual = ventas.filter((v) => {
             const fecha = v.fecha || v.fecha_venta || v.created_at;
             if (!fecha) return false;
             const fechaObj = new Date(fecha);
-            return fechaObj.getMonth() === month && fechaObj.getFullYear() === new Date().getFullYear();
-          }
-        );
-        const totalVentasMes = ventasMesActual.reduce(
-          (acc, v) => acc + parseFloat(v.total || v.total_venta || 0),
-          0
-        );
-        setVentasMes(totalVentasMes);
-        setNumVentas(ventasMesActual.length);
+            return fechaObj.getMonth() === month && fechaObj.getFullYear() === year;
+          });
 
-        // Ventas por usuario (solo cajeros activos, top 5 por ventas descendente)
-        // Map nombre usuario a sumatoria de ventas (total)
-        const activeCajerosNames = cajerosActivos.map(u => u.nombre);
-        const agrupado = {};
-        ventas.forEach((v) => {
-          const u = v.nombre_usuario || v.usuario || "Sin usuario";
-          if (activeCajerosNames.includes(u)) {
-            if (!agrupado[u]) agrupado[u] = 0;
-            agrupado[u] += parseFloat(v.total || v.total_venta || 0);
-          }
-        });
+          const totalVentasMes = ventasMesActual.reduce(
+            (acc, v) => acc + parseFloat(v.total || v.total_venta || 0),
+            0
+          );
+          setVentasMes(totalVentasMes);
+          setNumVentas(ventasMesActual.length);
 
-        // Creamos estructura que tiene todos los datos del cajero, pero también el total de ventas
-        // Solo los top 5 por mayor total vendido
-        const topCajeros = cajerosActivos
-          .map(cajero => ({
-            ...cajero,
-            totalVentas: agrupado[cajero.nombre] || 0
-          }))
-          .sort((a, b) => b.totalVentas - a.totalVentas)
-          .slice(0, 5);
+          // Ventas por cajero (top 5)
+          const activeCajerosNames = cajerosActivos.map(u => u.nombre);
+          const agrupado = {};
+          ventas.forEach((v) => {
+            const u = v.nombre_usuario || v.usuario || "Sin usuario";
+            if (activeCajerosNames.includes(u)) {
+              if (!agrupado[u]) agrupado[u] = 0;
+              agrupado[u] += parseFloat(v.total || v.total_venta || 0);
+            }
+          });
 
-        // [{nombre, ..., totalVentas}]
-        setVentasPorUsuario(topCajeros);
+          const topCajeros = cajerosActivos
+            .map(cajero => ({
+              ...cajero,
+              totalVentas: agrupado[cajero.nombre] || 0
+            }))
+            .sort((a, b) => b.totalVentas - a.totalVentas)
+            .slice(0, 5);
 
-        // ===== Productos =====
-        try {
-          const resProd = await fetch(`${API}/products/productos`);
-          if (!resProd.ok) throw new Error(`Error al obtener productos: ${resProd.status}`);
-          const productosData = await resProd.json();
-          // Normalizar los datos de stock aquí por cada producto
+          setVentasPorUsuario(topCajeros);
+
+          // ===== Optimización: Procesar productos vendidos en paralelo batch =====
+          // En lugar de hacer fetch individual, hacemos batch de 10 en 10
+          const ventasConDetalles = await Promise.all(
+            ventasMesActual.map(async (venta) => {
+              try {
+                const detRes = await fetch(`${API}/ventas/${venta.id_venta}`);
+                if (!detRes.ok) return null;
+                const { detalles } = await detRes.json();
+                return { venta, detalles };
+              } catch {
+                return null;
+              }
+            })
+          );
+
+          // Procesar estadísticas de productos
+          ventasConDetalles.forEach(item => {
+            if (!item || !Array.isArray(item.detalles)) return;
+            
+            item.detalles.forEach(detalle => {
+              const id = detalle.id_producto;
+              if (!productStats[id]) {
+                productStats[id] = {
+                  id,
+                  name: detalle.nombre_producto,
+                  qty: 0,
+                  total: 0,
+                  frequency: 0
+                };
+              }
+              
+              const cantidad = parseStock(detalle.cantidad);
+              const precioUnit = parseStock(detalle.precio_unitario);
+              productStats[id].qty += cantidad;
+              productStats[id].total += precioUnit * cantidad;
+              productStats[id].frequency++;
+            });
+          });
+
+          // Top 10 productos más vendidos
+          const productsArray = Object.values(productStats).map(stats => ({
+            ...stats,
+            score: (stats.total * 0.7) + (stats.frequency * stats.qty * 0.3)
+          }));
+
+          const topList = productsArray
+            .sort((a, b) => b.score - a.score)
+            .slice(0, 10);
+          
+          setTopProductos(topList);
+
+          // Bottom 10 productos menos vendidos (pero que se han vendido al menos 1 vez)
+          const bottomList = productsArray
+            .filter(p => p.qty > 0)
+            .sort((a, b) => a.score - b.score)
+            .slice(0, 10);
+          
+          setBottomProductos(bottomList);
+        }
+
+        // ===== Procesar Productos =====
+        if (productosRes.ok) {
+          const productosData = await productosRes.json();
           const productosNormalizados = Array.isArray(productosData)
             ? productosData.map(prod => ({
                 ...prod,
                 stock_actual: parseStock(prod.stock_actual != null ? prod.stock_actual : prod.stock),
                 stock: parseStock(prod.stock),
-                stock_minimo: parseStock(prod.stock_minimo)
+                stock_minimo: parseStock(prod.stock_minimo),
+                precio_compra: parseStock(prod.precio_compra),
+                precio_venta: parseStock(prod.precio_venta)
               }))
             : [];
           setProductos(productosNormalizados);
-        } catch (err) {
-          console.error("Error al cargar productos:", err);
-          setProductos([]);
         }
 
-        // ===== Clientes =====
-        try {
-          const resClientes = await fetch(`${API}/clientes`);
-          if (!resClientes.ok) throw new Error(`Error al obtener clientes: ${resClientes.status}`);
-          const clientesData = await resClientes.json();
+        // ===== Procesar Clientes =====
+        if (clientesRes.ok) {
+          const clientesData = await clientesRes.json();
           setClientes(Array.isArray(clientesData) ? clientesData : []);
-        } catch (err) {
-          console.error("Error al cargar clientes:", err);
-          setClientes([]);
         }
 
-        try {
-          const res = await fetch(`${API}/cajas`);
-          if (!res.ok) throw new Error(`Error ${res.status}`);
-          let data = await res.json();
-          if (!Array.isArray(data)) data = data.cajas || [];
-          const normalized = data.map((c) => ({
-            ...c,
-            estado_caja: c.estado_caja ?? c.estado ?? "",
-            numero_caja: c.numero_caja ?? c.numero ?? "",
-          }));
-          setCajas(normalized);
-        } catch (err) {
-          console.error("❌ Error al obtener cajas:", err);
-          setCajas([]);
+        // ===== Procesar Compras del mes =====
+        let comprasMesActual = []; // Declarar aquí para acceso global
+        if (comprasRes.ok) {
+          const compras = await comprasRes.json();
+          const month = new Date().getMonth();
+          const year = new Date().getFullYear();
+          
+          comprasMesActual = compras.filter((c) => {
+            const fecha = c.fecha_compra || c.fecha || c.created_at;
+            if (!fecha) return false;
+            const fechaObj = new Date(fecha);
+            return fechaObj.getMonth() === month && fechaObj.getFullYear() === year;
+          });
+
+          const totalComprasMes = comprasMesActual.reduce(
+            (acc, c) => acc + (parseFloat(c.total) || 0), 
+            0
+          );
+          setComprasMes(totalComprasMes);
         }
 
-        // ==== Proveedores ====
-        try {
-          const resProv = await fetch(`${API}/proveedores`);
-          if (!resProv.ok) throw new Error(`Error al obtener proveedores: ${resProv.status}`);
-          const provData = await resProv.json();
-          setProveedores(Array.isArray(provData) ? provData : []);
-        } catch (err) {
-          console.error("Error al cargar proveedores:", err);
-          setProveedores([]);
+        // ===== Procesar Mermas del mes =====
+        let mermasMesActual = [];
+        if (mermasRes.ok) {
+          const mermas = await mermasRes.json();
+          const month = new Date().getMonth();
+          const year = new Date().getFullYear();
+          
+          mermasMesActual = mermas.filter((m) => {
+            const fecha = m.fecha;
+            if (!fecha) return false;
+            const fechaObj = new Date(fecha);
+            return fechaObj.getMonth() === month && fechaObj.getFullYear() === year;
+          });
+
+          // Calcular valor total de pérdidas: cantidad * precio_venta
+          const totalMermasMes = mermasMesActual.reduce(
+            (acc, m) => {
+              const cantidad = parseFloat(m.cantidad) || 0;
+              const precioVenta = parseFloat(m.precio_venta) || 0;
+              return acc + (cantidad * precioVenta);
+            }, 
+            0
+          );
+          setMermasMes(totalMermasMes);
         }
 
-        // ==== Compras del mes ====
-        let comprasMesTotal = 0;
-        let resCompras = await fetch(`${API}/compras`);
-        if (resCompras.ok) {
-          const compras = await resCompras.json();
-          const mesActual = new Date().getMonth();
-          comprasMesTotal = compras
-            .filter((c) => {
-              const fecha = c.fecha_compra || c.fecha || c.created_at;
-              if (!fecha) return false;
-              const fechaObj = new Date(fecha);
-              return fechaObj.getMonth() === mesActual && fechaObj.getFullYear() === new Date().getFullYear();
-            })
-            .reduce((acc, c) => acc + (parseFloat(c.total) || 0), 0);
-        }
-        setComprasMes(comprasMesTotal);
+        // ===== Calcular Ganancias Netas =====
+        // Ganancias netas = Ingresos (Ventas) - Egresos (Compras + Mermas)
+        const totalVentas = ventasMesActual.reduce(
+          (acc, v) => acc + parseFloat(v.total || v.total_venta || 0),
+          0
+        );
+        const totalCompras = comprasMesActual.reduce(
+          (acc, c) => acc + (parseFloat(c.total) || 0), 
+          0
+        );
+        // Calcular total de mermas: cantidad * precio_venta
+        const totalMermas = mermasMesActual.reduce(
+          (acc, m) => {
+            const cantidad = parseFloat(m.cantidad) || 0;
+            const precioVenta = parseFloat(m.precio_venta) || 0;
+            return acc + (cantidad * precioVenta);
+          }, 
+          0
+        );
+        const ganancias = totalVentas - (totalCompras + totalMermas);
+        setGananciasNetas(ganancias);
+
       } catch (err) {
         console.error("Error al cargar dashboard:", err);
       } finally {
@@ -600,25 +884,13 @@ function DashboardContent() {
     fetchData();
   }, []);
 
-  // El dashboard y los gráficos ocupan todo el espacio disponible gracias a min-h y flex-1
-
-  const cajasAbiertas = cajas.filter((c) => {
-    // El estado puede venir en distintos campos y formas
-    // Usamos lower-case defensivo y aceptamos los formatos "abierta"/"ABIERTA", etc.
-    const estadoCaja = (c.estado_caja || c.estado || "").toString().trim().toLowerCase();
-    return estadoCaja === "abierta";
-  }).length;
-
-  const cajasTotales = cajas.length;
-  const porcentajeCajas =
-    cajasTotales > 0 ? Math.round((cajasAbiertas / cajasTotales) * 100) : 0;
-
-  // Para KPIs, usamos parseStock y mostramos máximo 2 decimales
+  // KPIs calculations
   const totalStock = productos.reduce(
     (a, p) => a + (parseStock(p.stock_actual)),
     0
   );
-  const ventasPct = Math.min(Math.round((ventasMes / 1000000) * 100), 100);
+  const ventasPct = Math.min(Math.round((ventasMes / 10000000) * 100), 100);
+  const comprasPct = Math.min(Math.round((comprasMes / 5000000) * 100), 100);
 
   return (
     <div className="flex flex-col flex-1 min-h-[540px] w-full justify-start gap-10">
@@ -647,38 +919,38 @@ function DashboardContent() {
               bar="from-emerald-500 to-teal-500" 
             />
             <Kpi 
-              title="Estado cajas" 
-              value={`${cajasAbiertas}/${cajasTotales}`} 
-              subtitle={`${porcentajeCajas}% en operación`}
+              title="Compras del mes" 
+              value={`$${comprasMes.toLocaleString()}`} 
+              subtitle="en adquisiciones"
               bar="from-amber-500 to-orange-500" 
             />
           </div>
 
           {/* === Gráficos principales === */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          <Card title="Rendimiento de Ventas">
-            <div className="flex flex-col items-center space-y-2">
-              <Donut value={ventasPct} label="Meta mensual" />
-              <div className="text-center">
-                <p className="mt-2 text-lg font-bold text-slate-700">
-                  ${ventasMes.toLocaleString()}
-                </p>
-                <p className="text-xs text-slate-500">
-                  Total en ventas este mes
-                </p>
-              </div>
-            </div>
-          </Card>
-
-            <Card title="Operaciones">
+            <Card title="Rendimiento de Ventas">
               <div className="flex flex-col items-center space-y-2">
-                <Donut value={porcentajeCajas} label="Cajas activas" />
+                <Donut value={ventasPct} label="Meta mensual" />
                 <div className="text-center">
                   <p className="mt-2 text-lg font-bold text-slate-700">
-                    {cajasAbiertas} de {cajasTotales}
+                    ${ventasMes.toLocaleString()}
                   </p>
                   <p className="text-xs text-slate-500">
-                    Puntos de venta operativos
+                    Total en ventas este mes
+                  </p>
+                </div>
+              </div>
+            </Card>
+
+            <Card title="Compras del Mes">
+              <div className="flex flex-col items-center space-y-2">
+                <Donut value={comprasPct} label="Inversión" color="from-amber-500 to-orange-600" />
+                <div className="text-center">
+                  <p className="mt-2 text-lg font-bold text-slate-700">
+                    ${comprasMes.toLocaleString()}
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    Total en compras este mes
                   </p>
                 </div>
               </div>
@@ -704,25 +976,53 @@ function DashboardContent() {
             </Card>
           </div>
 
+          {/* === Ganancias y Pérdidas === */}
+          <Card title="Análisis Financiero">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="text-center p-4 bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg border border-green-200">
+                <div className="text-xs text-green-600 font-semibold mb-2">INGRESOS (Ventas)</div>
+                <div className="text-2xl font-bold text-green-700">${ventasMes.toLocaleString()}</div>
+              </div>
+              <div className="text-center p-4 bg-gradient-to-br from-orange-50 to-amber-50 rounded-lg border border-orange-200">
+                <div className="text-xs text-orange-600 font-semibold mb-2">EGRESOS (Compras)</div>
+                <div className="text-2xl font-bold text-orange-700">${comprasMes.toLocaleString()}</div>
+              </div>
+              <div className="text-center p-4 bg-gradient-to-br from-red-50 to-rose-50 rounded-lg border border-red-200">
+                <div className="text-xs text-red-600 font-semibold mb-2">PÉRDIDAS (Mermas)</div>
+                <div className="text-2xl font-bold text-red-700">${mermasMes.toLocaleString()}</div>
+                <div className="text-xs text-slate-500 mt-1">
+                  {mermasMes > 0 ? 'Pérdida de inventario' : '✓ Sin pérdidas'}
+                </div>
+              </div>
+              <div className="text-center p-4 bg-gradient-to-br from-blue-50 to-cyan-50 rounded-lg border border-blue-200">
+                <div className="text-xs text-blue-600 font-semibold mb-2">GANANCIA NETA</div>
+                <div className={`text-2xl font-bold ${gananciasNetas >= 0 ? 'text-blue-700' : 'text-red-700'}`}>
+                  ${gananciasNetas.toLocaleString()}
+                </div>
+                <div className="text-xs text-slate-500 mt-1">
+                  {gananciasNetas >= 0 ? '✓ Rentable' : '✗ Pérdida'}
+                </div>
+              </div>
+            </div>
+          </Card>
+
           {/* === Ventas por Usuario === */}
           <Card title="Ventas por usuario">
-            <div className="flex flex-col lg:flex-row items-center justify-center gap-10 py-4">
-              <div className="relative">
+            <div className="flex flex-col lg:flex-row items-start justify-center gap-10 py-4">
+              <div className="relative flex-shrink-0">
                 <Pie
                   data={ventasPorUsuario.map((entry) => entry.totalVentas)}
                   labels={ventasPorUsuario.map((entry) => entry.nombre)}
                   size={260}
                 />
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="text-center">
-                    <div className="text-3xl font-bold text-slate-700">
-                      ${ventasMes.toLocaleString()}
-                    </div>
-                    <div className="text-xs text-slate-500">Total del mes</div>
-                  </div>
-                </div>
               </div>
               <div className="flex-1 min-w-[240px]">
+                <div className="mb-4 p-4 bg-gradient-to-r from-orange-50 to-pink-50 rounded-lg border border-orange-200">
+                  <div className="text-xs text-slate-500 mb-1">Total del mes</div>
+                  <div className="text-2xl font-bold text-slate-700">
+                    ${ventasMes.toLocaleString()}
+                  </div>
+                </div>
                 <div className="mb-3 pb-2 border-b border-slate-200">
                   <div className="text-sm font-medium text-slate-400">
                     Top Cajeros Activos del Mes
@@ -763,8 +1063,126 @@ function DashboardContent() {
             </div>
           </Card>
 
-          {/* === Top Productos === */}
-          <TopProducts />
+          {/* === Top Productos Más Vendidos === */}
+          <Card title="Top 10 productos más vendidos">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              <div className="flex items-center justify-center">
+                {topProductos.length > 0 ? (
+                  <Pie 
+                    data={topProductos.map(p => p.total)} 
+                    labels={topProductos.map(p => p.name)} 
+                    size={240} 
+                  />
+                ) : (
+                  <div className="text-slate-400 text-sm">Sin datos</div>
+                )}
+              </div>
+              <div className="lg:col-span-2">
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-sm">
+                    <thead className="bg-orange-50 text-slate-600">
+                      <tr>
+                        <Th>#</Th>
+                        <Th>Nombre</Th>
+                        <Th className="text-right">Cant</Th>
+                        <Th className="text-right">Total</Th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {topProductos.map((r, i) => (
+                        <tr key={i} className="hover:bg-orange-50">
+                          <Td>{i + 1}</Td>
+                          <Td>{r.name}</Td>
+                          <Td className="text-right">
+                            {parseStock(r.qty).toLocaleString(undefined, {maximumFractionDigits: 2})}
+                          </Td>
+                          <Td className="text-right">
+                            ${parseStock(r.total).toLocaleString(undefined, {maximumFractionDigits: 2})}
+                          </Td>
+                        </tr>
+                      ))}
+                      {topProductos.length === 0 && (
+                        <tr>
+                          <Td colSpan={4} className="text-center text-slate-400 py-4">
+                            No hay productos vendidos este mes
+                          </Td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </Card>
+
+          {/* === Bottom 10 Productos Menos Vendidos === */}
+          <Card title="Top 10 productos menos vendidos">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              <div className="flex items-center justify-center">
+                {bottomProductos.length > 0 ? (
+                  <Pie 
+                    data={bottomProductos.map(p => p.total)} 
+                    labels={bottomProductos.map(p => p.name)} 
+                    size={240} 
+                  />
+                ) : (
+                  <div className="text-slate-400 text-sm">Sin datos</div>
+                )}
+              </div>
+              <div className="lg:col-span-2">
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-sm">
+                    <thead className="bg-red-50 text-slate-600">
+                      <tr>
+                        <Th className="whitespace-nowrap">#</Th>
+                        <Th className="whitespace-nowrap">Nombre</Th>
+                        <Th className="text-right whitespace-nowrap">Cantidad</Th>
+                        <Th className="text-right whitespace-nowrap">Total</Th>
+                        <Th className="text-right whitespace-nowrap">Frecuencia</Th>
+                        <Th className="text-center whitespace-nowrap">Estado</Th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {bottomProductos.map((r, i) => (
+                        <tr key={i} className="hover:bg-red-50">
+                          <Td className="whitespace-nowrap">{i + 1}</Td>
+                          <Td className="font-medium min-w-[150px]">{r.name}</Td>
+                          <Td className="text-right whitespace-nowrap">
+                            {parseStock(r.qty).toLocaleString(undefined, {maximumFractionDigits: 2})}
+                          </Td>
+                          <Td className="text-right text-red-600 font-semibold whitespace-nowrap">
+                            ${parseStock(r.total).toLocaleString(undefined, {maximumFractionDigits: 2})}
+                          </Td>
+                          <Td className="text-right whitespace-nowrap">
+                            <span className="inline-block px-2 py-1 bg-slate-100 rounded text-xs whitespace-nowrap">
+                              {r.frequency} {r.frequency === 1 ? 'venta' : 'ventas'}
+                            </span>
+                          </Td>
+                          <Td className="text-center whitespace-nowrap">
+                            <span className="inline-block px-2 py-1 bg-amber-100 text-amber-700 rounded-full text-xs font-semibold whitespace-nowrap">
+                              ⚠️ Baja rotación
+                            </span>
+                          </Td>
+                        </tr>
+                      ))}
+                      {bottomProductos.length === 0 && (
+                        <tr>
+                          <Td colSpan={6} className="text-center text-slate-400 py-4">
+                            No hay productos con baja rotación
+                          </Td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+            <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+              <p className="text-xs text-amber-800">
+                💡 <strong>Recomendación:</strong> Productos con baja rotación pueden requerir descuentos promocionales o revisión de inventario.
+              </p>
+            </div>
+          </Card>
         </>
       )}
     </div>
@@ -800,11 +1218,30 @@ function Kpi({ title, value, subtitle, bar }) {
   );
 }
 
-function Donut({ value = 75, size = 160, label = "" }) {
+function Donut({ value = 75, size = 160, label = "", color = "from-orange-500 to-pink-500" }) {
   const stroke = 16;
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
   const offset = c - (value / 100) * c;
+  
+  // Extraer colores del gradiente
+  const gradientId = `grad-${label.replace(/\s/g, '-')}`;
+  const colorStart = color.includes('from-') ? color.split('from-')[1].split(' ')[0] : 'orange-500';
+  const colorEnd = color.includes('to-') ? color.split('to-')[1].split(' ')[0] : 'pink-500';
+  
+  // Mapeo de colores Tailwind a hex
+  const colorMap = {
+    'orange-500': '#fb923c',
+    'pink-500': '#ec4899',
+    'amber-500': '#f59e0b',
+    'orange-600': '#ea580c',
+    'green-400': '#4ade80',
+    'lime-400': '#a3e635',
+  };
+  
+  const startColor = colorMap[colorStart] || '#fb923c';
+  const endColor = colorMap[colorEnd] || '#ec4899';
+  
   return (
     <svg width={size} height={size} className="drop-shadow-sm">
       <g transform={`translate(${size / 2},${size / 2})`}>
@@ -812,7 +1249,7 @@ function Donut({ value = 75, size = 160, label = "" }) {
         <circle
           r={r}
           fill="none"
-          stroke="url(#grad)"
+          stroke={`url(#${gradientId})`}
           strokeWidth={stroke}
           strokeDasharray={c}
           strokeDashoffset={offset}
@@ -820,9 +1257,9 @@ function Donut({ value = 75, size = 160, label = "" }) {
           transform="rotate(-90)"
         />
         <defs>
-          <linearGradient id="grad" gradientTransform="rotate(90)">
-            <stop offset="0%" stopColor="#fb923c" />
-            <stop offset="100%" stopColor="#ec4899" />
+          <linearGradient id={gradientId} gradientTransform="rotate(90)">
+            <stop offset="0%" stopColor={startColor} />
+            <stop offset="100%" stopColor={endColor} />
           </linearGradient>
         </defs>
         <text
@@ -843,146 +1280,6 @@ function Donut({ value = 75, size = 160, label = "" }) {
         </text>
       </g>
     </svg>
-  );
-}
-
-function TopProducts() {
-  const [rows, setRows] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchTop = async () => {
-      try {
-        // Obtenemos todas las ventas con sus detalles
-        const ventasRes = await fetch(`${API}/ventas`);
-        if (!ventasRes.ok) throw new Error(`Error al obtener ventas: ${ventasRes.status}`);
-        
-        const ventas = await ventasRes.json();
-        let productStats = {};
-        
-        // Procesamos cada venta para obtener estadísticas por producto
-        for (const venta of ventas) {
-          try {
-            const detRes = await fetch(`${API}/ventas/${venta.id_venta}`);
-            if (!detRes.ok) continue;
-            
-            const { detalles } = await detRes.json();
-            if (!Array.isArray(detalles)) continue;
-
-            for (const detalle of detalles) {
-              const id = detalle.id_producto;
-              if (!productStats[id]) {
-                productStats[id] = {
-                  name: detalle.nombre_producto,
-                  qty: 0,
-                  total: 0,
-                  lastSale: null,
-                  frequency: 0 // número de ventas en las que aparece
-                };
-              }
-              
-              // Normalizamos cantidad y precios para evitar errores
-              const cantidad = parseStock(detalle.cantidad);
-              const precioUnit = parseStock(detalle.precio_unitario);
-              productStats[id].qty += cantidad;
-              productStats[id].total += precioUnit * cantidad;
-              productStats[id].frequency++;
-              productStats[id].lastSale = venta.fecha;
-            }
-          } catch (err) {
-            console.warn('Error procesando venta', venta.id_venta, err);
-            continue;
-          }
-        }
-
-        // Calculamos score para cada producto (ventas totales + frecuencia)
-        const productsArray = Object.entries(productStats).map(([id, stats]) => ({
-          id,
-          ...stats,
-          score: (stats.total * 0.7) + (stats.frequency * stats.qty * 0.3) // 70% por valor, 30% por frecuencia y cantidad
-        }));
-
-        // Ordenamos por score y tomamos los top 8
-        const topList = productsArray
-          .sort((a, b) => b.score - a.score)
-          .slice(0, 8);
-
-        setRows(topList);
-      } catch (err) {
-        console.error("Error al procesar top productos:", err);
-        setRows([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchTop();
-  }, []);
-
-  const pieData = rows.map((r) => r.total);
-  const pieLabels = rows.map((r) => r.name);
-
-  return (
-    <section className="bg-white rounded-xl shadow-sm border border-slate-200">
-      <div className="p-5 border-b bg-gradient-to-r from-orange-50 to-pink-50">
-        <h3 className="font-semibold text-slate-800">Top de los productos más vendidos</h3>
-      </div>
-      <div className="p-6 grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="flex items-center justify-center">
-          {loading ? (
-            <Spinner label="Cargando ranking de productos..." />
-          ) : (
-            <Pie data={pieData} labels={pieLabels} size={240} />
-          )}
-        </div>
-        <div className="lg:col-span-2">
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
-              <thead className="bg-orange-50 text-slate-600">
-                <tr>
-                  <Th>#</Th>
-                  <Th>Nombre</Th>
-                  <Th className="text-right">Cant</Th>
-                  <Th className="text-right">Total</Th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {loading ? (
-                  Array.from({ length: 6 }).map((_, i) => (
-                    <tr key={i} className="animate-pulse">
-                      <Td>
-                        <div className="h-4 w-7 bg-orange-50 rounded" />
-                      </Td>
-                      <Td>
-                        <div className="h-4 w-28 bg-orange-50 rounded" />
-                      </Td>
-                      <Td className="text-right">
-                        <div className="h-4 w-12 bg-orange-50 rounded ml-auto" />
-                      </Td>
-                      <Td className="text-right">
-                        <div className="h-4 w-14 bg-orange-50 rounded ml-auto" />
-                      </Td>
-                    </tr>
-                  ))
-                ) : (
-                  rows.map((r, i) => (
-                    <tr key={i} className="hover:bg-orange-50">
-                      <Td>{i + 1}</Td>
-                      <Td>{r.name}</Td>
-                      <Td className="text-right">
-                        {parseStock(r.qty).toLocaleString(undefined, {maximumFractionDigits: 2})}
-                      </Td>
-                      <Td className="text-right">
-                        ${parseStock(r.total).toLocaleString(undefined, {maximumFractionDigits: 2})}
-                      </Td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    </section>
   );
 }
 
@@ -1031,8 +1328,8 @@ function Pie({ data = [], labels = [], size = 220 }) {
   );
 }
 
-function Th({ children }) {
-  return <th className="text-left px-4 py-3 font-medium">{children}</th>;
+function Th({ children, className = "" }) {
+  return <th className={`text-left px-4 py-3 font-medium ${className}`}>{children}</th>;
 }
 function Td({ children, className = "" }) {
   return <td className={`px-4 py-3 ${className}`}>{children}</td>;

@@ -4,6 +4,7 @@ import multer from "multer";
 import cloudinary from "../config/cloudinaryConfig.js";
 import pool from "../config/database.js";
 import fs from "fs";
+import { registrarAuditoria } from "../utils/auditoria.js";
 
 const router = express.Router();
 const upload = multer({ dest: "temp/" });
@@ -39,12 +40,15 @@ router.get("/", async (req, res) => {
         u.correo,
         u.rol,
         u.estado,
+        u.id_sucursal,
+        s.nombre as sucursal_nombre,
         d.documento_identidad,
         d.telefono,
         d.foto_perfil,
         d.cargo
       FROM usuarios u
       LEFT JOIN usuarios_detalle d ON u.id_usuario = d.id_usuario
+      LEFT JOIN sucursales s ON u.id_sucursal = s.id_sucursal
       WHERE u.is_deleted = 0
       ORDER BY u.nombre ASC
     `);
@@ -125,7 +129,7 @@ router.post("/", upload.single("foto"), async (req, res) => {
   let fotoUrl = null;
   const {
     nombre, correo, contrasena, rol, documento_identidad, direccion, telefono,
-    fecha_nacimiento, genero, cargo, estado = 1
+    fecha_nacimiento, genero, cargo, estado = 1, id_sucursal = 1
   } = req.body;
 
   if (!nombre || !correo || !contrasena) {
@@ -135,11 +139,15 @@ router.post("/", upload.single("foto"), async (req, res) => {
   try {
     const rolString = Array.isArray(rol) ? rol.join(',') : rol || 'cajero';
 
+    console.log(`[DEBUG] Creando usuario: ${nombre}, rol: ${rolString}, sucursal: ${id_sucursal}`);
+
     const [userResult] = await pool.query(
-      `INSERT INTO usuarios (nombre, correo, contrasena, rol, estado) VALUES (?, ?, ?, ?, ?)`,
-      [nombre, correo, contrasena, rolString, estado]
+      `INSERT INTO usuarios (nombre, correo, contrasena, rol, estado, id_sucursal) VALUES (?, ?, ?, ?, ?, ?)`,
+      [nombre, correo, contrasena, rolString, estado, id_sucursal]
     );
     const id_usuario = userResult.insertId;
+
+    console.log(`[DEBUG] Usuario creado con ID: ${id_usuario}`);
 
     if (req.file) {
       const cloudName = process.env.CLOUDINARY_CLOUD_NAME || "";
@@ -166,6 +174,24 @@ router.post("/", upload.single("foto"), async (req, res) => {
         fecha_nacimiento || null, genero || 'otro', fotoPublicId, cargo || null]
     );
 
+    console.log(`[DEBUG] Detalle de usuario creado. Enviando respuesta con ID: ${id_usuario}`);
+
+    // Registrar auditoría de creación de usuario
+    await registrarAuditoria({
+      id_usuario: id_usuario,
+      accion: 'Creación de usuario',
+      tabla_nombre: 'usuarios',
+      registro_id: id_usuario,
+      detalles: {
+        nombre,
+        correo,
+        rol: rolString,
+        id_sucursal,
+        cargo: cargo || null
+      },
+      req
+    });
+
     res.status(201).json({
       id: id_usuario,
       message: 'Usuario creado exitosamente',
@@ -174,7 +200,7 @@ router.post("/", upload.single("foto"), async (req, res) => {
     });
   } catch (err) {
     console.error('Error al crear usuario:', err);
-    res.status(500).json({ error: 'Error interno del servidor' });
+    res.status(500).json({ error: 'Error interno del servidor: ' + err.message });
   }
 });
 
@@ -237,6 +263,22 @@ router.put("/:id", upload.single("foto"), async (req, res) => {
       campos
     );
 
+    // Registrar auditoría de actualización de perfil
+    await registrarAuditoria({
+      id_usuario: id,
+      accion: 'Actualización de perfil',
+      tabla_nombre: 'usuarios',
+      registro_id: id,
+      detalles: {
+        nombre,
+        correo,
+        rol: rolString,
+        estado: estado || 1,
+        foto_actualizada: !!req.file
+      },
+      req
+    });
+
     res.json({
       message: "Perfil actualizado correctamente",
       foto: fotoPublicId,
@@ -279,6 +321,21 @@ router.delete("/:id", async (req, res) => {
       `UPDATE usuarios SET is_deleted = 1, deleted_at = NOW(), deleted_by = ? WHERE id_usuario = ?`,
       [deletedBy, id]
     );
+
+    // Registrar auditoría de eliminación (soft delete)
+    await registrarAuditoria({
+      id_usuario: deletedBy,
+      accion: 'Eliminación de usuario (soft delete)',
+      tabla_nombre: 'usuarios',
+      registro_id: id,
+      detalles: {
+        usuario_eliminado: usuario.nombre,
+        correo: usuario.correo,
+        rol: usuario.rol,
+        movido_a_papelera: true
+      },
+      req
+    });
 
     if (result.affectedRows === 0)
       return res.status(404).json({ error: 'Usuario no encontrado' });

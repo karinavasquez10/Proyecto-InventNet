@@ -25,13 +25,9 @@ import ConsultarVentas from "./pages/Admin/ConsultarVentas";
 import CierresCaja from "./pages/Admin/CierresCaja";
 import GestionProveedores from "./pages/Admin/GestionProveedores";
 import Indicadores from "./pages/Admin/Indicadores";
-import Entradas from "./pages/Admin/Entradas";
 import SedePrincipal from "./pages/Admin/SedePrincipal";
-import CargueMasivo from "./pages/Admin/CargueMasivo";
 import ProductosRecogidos from "./pages/Admin/ProductosRecogidos";
-import Cotizaciones from "./pages/Admin/Cotizaciones";
 import HomePrincipal from "./pages/HomePrincipal";
-import Salidas from "./pages/Admin/Salidas";
 import Movimientos from "./pages/Admin/Movimientos";
 import ListaPrecios from "./pages/Admin/ListaPrecios";
 import CalibrarProductos from "./pages/Admin/CalibrarProductos";
@@ -83,15 +79,11 @@ function App() {
                 element={<GestionProveedores />}
               />
               <Route path="Indicadores" element={<Indicadores />} />
-              <Route path="Entradas" element={<Entradas />} />
-              <Route path="Salidas" element={<Salidas />} />
               <Route path="SedePrincipal" element={<SedePrincipal />} />
-              <Route path="CargueMasivo" element={<CargueMasivo />} />
               <Route
                 path="ProductosRecogidos"
                 element={<ProductosRecogidos />}
               />
-              <Route path="Cotizaciones" element={<Cotizaciones />} />
               <Route path="Movimientos" element={<Movimientos />} />
               <Route path="ListaPrecios" element={<ListaPrecios />} />
               <Route

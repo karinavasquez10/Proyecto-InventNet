@@ -1,5 +1,6 @@
 import express from "express";
 import pool from "../config/database.js";
+import { registrarAuditoria } from "../utils/auditoria.js";
 
 const router = express.Router();
 
@@ -61,6 +62,23 @@ router.post("/", async (req, res) => {
       [result.insertId]
     );
 
+    // Registrar auditoría de creación de cliente
+    await registrarAuditoria({
+      id_usuario: req.user?.id || 1,
+      accion: 'Creación de cliente',
+      tabla_nombre: 'clientes',
+      registro_id: result.insertId,
+      detalles: {
+        nombre,
+        identificacion,
+        direccion,
+        telefono,
+        correo,
+        tipo: tipo || "persona"
+      },
+      req
+    });
+
     res.status(201).json(rows[0]);
   } catch (error) {
     console.error("Error al crear cliente:", error);
@@ -105,6 +123,23 @@ router.put("/:id", async (req, res) => {
       [id]
     );
 
+    // Registrar auditoría de actualización de cliente
+    await registrarAuditoria({
+      id_usuario: req.user?.id || 1,
+      accion: 'Actualización de cliente',
+      tabla_nombre: 'clientes',
+      registro_id: id,
+      detalles: {
+        nombre,
+        identificacion,
+        direccion,
+        telefono,
+        correo,
+        tipo: tipo || "persona"
+      },
+      req
+    });
+
     res.json(rows[0]);
   } catch (error) {
     console.error("Error al actualizar cliente:", error);
@@ -145,6 +180,23 @@ router.delete("/:id", async (req, res) => {
       `UPDATE clientes SET is_deleted = 1, deleted_at = NOW(), deleted_by = ? WHERE id_cliente = ?`,
       [deletedBy, id]
     );
+
+    // Registrar auditoría de eliminación de cliente
+    await registrarAuditoria({
+      id_usuario: deletedBy,
+      accion: 'Eliminación de cliente (soft delete)',
+      tabla_nombre: 'clientes',
+      registro_id: id,
+      detalles: {
+        nombre: cliente.nombre,
+        identificacion: cliente.identificacion,
+        telefono: cliente.telefono,
+        correo: cliente.correo,
+        tipo: cliente.tipo,
+        movido_a_papelera: true
+      },
+      req
+    });
 
     res.json({ message: "Cliente eliminado exitosamente" });
   } catch (error) {

@@ -219,6 +219,14 @@ function Home() {
   const [showQuantityModal, setShowQuantityModal] = useState(false);
   const [modalProduct, setModalProduct] = useState(null);
   const [editItemId, setEditItemId] = useState(null);
+  
+  // Permisos del usuario
+  const [userPermisos, setUserPermisos] = useState({});
+  const [permisosLoaded, setPermisosLoaded] = useState(false);
+  
+  // Estado de carga inicial
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
 
   // Datos del usuario autenticado
   const storedUser = (() => {
@@ -255,17 +263,52 @@ function Home() {
     document.documentElement.classList.toggle("dark", theme === "dark");
   }, [theme]);
 
-  // Cargar productos/categorías
+  // Cargar permisos del usuario y datos iniciales
   useEffect(() => {
-    const fetchData = async () => {
+    const loadInitialData = async () => {
+      if (!cajero.id) {
+        setLoadError({
+          type: 'auth',
+          message: 'No se encontró información de usuario. Por favor inicia sesión nuevamente.'
+        });
+        setInitialLoading(false);
+        return;
+      }
+      
       try {
-        const [productResponse, categoryResponse] = await Promise.all([
+        // Cargar permisos y datos en paralelo
+        const [permisosResponse, productResponse, categoryResponse] = await Promise.all([
+          fetch(`http://localhost:5000/api/permisos/${cajero.id}`, {
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('token') || ''}`,
+            }
+          }),
           fetch("http://localhost:5000/api/products/productos"),
           fetch("http://localhost:5000/api/categorias"),
         ]);
-        if (!productResponse.ok || !categoryResponse.ok) {
-          throw new Error("Error en la respuesta del servidor");
+        
+        // Verificar si todas las respuestas fueron exitosas
+        if (!permisosResponse.ok || !productResponse.ok || !categoryResponse.ok) {
+          const errorMsg = !permisosResponse.ok 
+            ? 'Error al cargar permisos de usuario'
+            : !productResponse.ok
+            ? 'Error al cargar productos'
+            : 'Error al cargar categorías';
+          
+          setLoadError({
+            type: 'server',
+            message: `${errorMsg}. Código de error: ${permisosResponse.status || productResponse.status || categoryResponse.status}`
+          });
+          setInitialLoading(false);
+          return;
         }
+        
+        // Procesar permisos
+        const permisosData = await permisosResponse.json();
+        setUserPermisos(permisosData);
+        console.log('[Home Cajero] Permisos cargados:', permisosData);
+        
+        // Procesar productos y categorías
         const productsData = await productResponse.json();
         const categoriesData = await categoryResponse.json();
 
@@ -289,12 +332,30 @@ function Home() {
 
         setProducts(formattedProducts);
         setCategories([{ id: null, nombre: "Todas" }, ...formattedCategories]);
+        setLoadError(null); // Limpiar error si todo salió bien
       } catch (error) {
-        console.error("Error al cargar datos:", error);
+        console.error('[Home Cajero] Error al cargar datos iniciales:', error);
+        
+        // Determinar el tipo de error
+        if (error.name === 'TypeError' && error.message.includes('fetch')) {
+          setLoadError({
+            type: 'network',
+            message: 'No se pudo conectar con el servidor. Verifica tu conexión a internet.'
+          });
+        } else {
+          setLoadError({
+            type: 'unknown',
+            message: 'Ocurrió un error inesperado al cargar los datos. Por favor intenta nuevamente.'
+          });
+        }
+      } finally {
+        setPermisosLoaded(true);
+        setInitialLoading(false);
       }
     };
-    fetchData();
-  }, []);
+
+    loadInitialData();
+  }, [cajero.id]);
 
   // Filtrar productos
   const filteredProducts = products.filter((p) => 
@@ -400,6 +461,214 @@ function Home() {
     setCart([]);
   };
 
+  // Mostrar pantalla de error si hay problemas de carga
+  if (loadError) {
+    const errorIcons = {
+      network: '📡',
+      server: '🔧',
+      auth: '🔐',
+      unknown: '⚠️'
+    };
+
+    const errorTitles = {
+      network: 'Error de Conexión',
+      server: 'Error del Servidor',
+      auth: 'Sesión No Válida',
+      unknown: 'Error Desconocido'
+    };
+
+    return (
+      <div
+        className={`flex h-screen w-screen items-center justify-center transition-colors duration-300 ${
+          theme === "dark"
+            ? "bg-gradient-to-br from-zinc-900 via-gray-900 to-stone-900"
+            : "bg-gradient-to-br from-orange-50 via-white to-rose-50"
+        }`}
+      >
+        <div className={`max-w-md w-full mx-4 p-8 rounded-2xl shadow-2xl ${
+          theme === "dark" 
+            ? "bg-slate-900 border border-slate-700" 
+            : "bg-white border border-slate-200"
+        }`}>
+          {/* Icono de error */}
+          <div className="flex justify-center mb-6">
+            <div className={`w-20 h-20 rounded-full flex items-center justify-center text-4xl ${
+              loadError.type === 'network' 
+                ? 'bg-red-100 dark:bg-red-900/30'
+                : loadError.type === 'auth'
+                ? 'bg-amber-100 dark:bg-amber-900/30'
+                : 'bg-orange-100 dark:bg-orange-900/30'
+            }`}>
+              {errorIcons[loadError.type] || errorIcons.unknown}
+            </div>
+          </div>
+
+          {/* Título y mensaje */}
+          <div className="text-center mb-6">
+            <h2 className={`text-2xl font-bold mb-3 ${
+              theme === "dark" ? "text-white" : "text-slate-800"
+            }`}>
+              {errorTitles[loadError.type] || errorTitles.unknown}
+            </h2>
+            <p className={`text-sm leading-relaxed ${
+              theme === "dark" ? "text-slate-300" : "text-slate-600"
+            }`}>
+              {loadError.message}
+            </p>
+          </div>
+
+          {/* Recomendaciones según el tipo de error */}
+          <div className={`p-4 rounded-lg mb-6 ${
+            theme === "dark" ? "bg-slate-800" : "bg-slate-50"
+          }`}>
+            <p className={`text-xs font-semibold mb-2 ${
+              theme === "dark" ? "text-slate-300" : "text-slate-700"
+            }`}>
+              Posibles soluciones:
+            </p>
+            <ul className={`text-xs space-y-1 ${
+              theme === "dark" ? "text-slate-400" : "text-slate-600"
+            }`}>
+              {loadError.type === 'network' && (
+                <>
+                  <li>• Verifica tu conexión a internet</li>
+                  <li>• Asegúrate de que el servidor esté activo</li>
+                  <li>• Revisa la configuración de red</li>
+                </>
+              )}
+              {loadError.type === 'server' && (
+                <>
+                  <li>• El servidor puede estar temporalmente inactivo</li>
+                  <li>• Contacta al administrador del sistema</li>
+                  <li>• Verifica la configuración de la base de datos</li>
+                </>
+              )}
+              {loadError.type === 'auth' && (
+                <>
+                  <li>• Tu sesión puede haber expirado</li>
+                  <li>• Inicia sesión nuevamente</li>
+                  <li>• Contacta al administrador si el problema persiste</li>
+                </>
+              )}
+              {loadError.type === 'unknown' && (
+                <>
+                  <li>• Intenta recargar la página</li>
+                  <li>• Limpia la caché del navegador</li>
+                  <li>• Contacta al soporte técnico</li>
+                </>
+              )}
+            </ul>
+          </div>
+
+          {/* Botones de acción */}
+          <div className="flex gap-3">
+            <button
+              onClick={() => window.location.reload()}
+              className="flex-1 py-3 px-4 rounded-lg font-medium text-white bg-gradient-to-r from-orange-500 to-fuchsia-500 hover:brightness-110 transition shadow-md"
+            >
+              Reintentar
+            </button>
+            {loadError.type === 'auth' && (
+              <button
+                onClick={() => {
+                  localStorage.clear();
+                  window.location.href = '/';
+                }}
+                className={`flex-1 py-3 px-4 rounded-lg font-medium transition ${
+                  theme === "dark"
+                    ? "bg-slate-700 hover:bg-slate-600 text-white"
+                    : "bg-slate-200 hover:bg-slate-300 text-slate-700"
+                }`}
+              >
+                Cerrar Sesión
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Mostrar spinner de carga inicial
+  if (initialLoading) {
+    return (
+      <div
+        className={`flex h-screen w-screen items-center justify-center transition-colors duration-300 ${
+          theme === "dark"
+            ? "bg-gradient-to-br from-zinc-900 via-gray-900 to-stone-900"
+            : "bg-gradient-to-br from-orange-50 via-white to-rose-50"
+        }`}
+      >
+        <div className="flex flex-col items-center gap-6">
+          {/* Logo/Icono de la app */}
+          <div className={`flex items-center gap-3 mb-4 ${
+            theme === "dark" ? "text-slate-100" : "text-slate-800"
+          }`}>
+            <span className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-r from-orange-500 to-fuchsia-500 text-white font-bold text-2xl shadow-lg">
+              IN
+            </span>
+            <div className="leading-tight">
+              <div className="text-2xl font-bold">InventNet</div>
+              <div className={`text-sm ${
+                theme === "dark" ? "text-slate-400" : "text-slate-600"
+              }`}>Sistema POS</div>
+            </div>
+          </div>
+
+          {/* Spinner con gradiente */}
+          <svg 
+            className="animate-spin h-20 w-20" 
+            viewBox="0 0 24 24"
+          >
+            <circle
+              cx="12"
+              cy="12"
+              r="10"
+              strokeWidth="3"
+              fill="none"
+              className={`opacity-20 ${theme === "dark" ? "stroke-slate-600" : "stroke-orange-200"}`}
+            />
+            <defs>
+              <linearGradient id="spinnerGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#f97316" />
+                <stop offset="50%" stopColor="#ec4899" />
+                <stop offset="100%" stopColor="#d946ef" />
+              </linearGradient>
+            </defs>
+            <path
+              className="opacity-90"
+              fill="none"
+              stroke="url(#spinnerGradient)"
+              strokeWidth="3"
+              strokeLinecap="round"
+              d="M12 2a10 10 0 0 1 10 10"
+            />
+          </svg>
+
+          {/* Textos */}
+          <div className="flex flex-col items-center gap-2">
+            <div className={`text-xl font-bold bg-gradient-to-r from-orange-500 via-rose-500 to-fuchsia-500 bg-clip-text text-transparent`}>
+              Cargando datos del sistema...
+            </div>
+            <div className={`text-sm ${
+              theme === "dark" ? "text-slate-400" : "text-slate-500"
+            }`}>
+              Configurando tu espacio de trabajo
+            </div>
+          </div>
+
+          {/* Barra de progreso animada */}
+          <div className={`w-64 h-1.5 rounded-full overflow-hidden ${
+            theme === "dark" ? "bg-slate-800" : "bg-slate-200"
+          }`}>
+            <div className="h-full bg-gradient-to-r from-orange-500 via-rose-500 to-fuchsia-500 animate-pulse rounded-full" 
+                 style={{ width: '70%', animation: 'pulse 1.5s ease-in-out infinite' }} />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       className={`flex h-screen transition-colors duration-300 ${
@@ -476,24 +745,33 @@ function Home() {
 
           <div className="flex flex-wrap gap-2 justify-center sm:justify-start">
             {[
-              ["Clientes", () => setShowClientes(true), <Users key="users" size={16} />],
-              ["Abrir Caja", () => setShowAbrirCaja(true), <Box key="box1" size={16} />],
-              ["Cerrar Caja", () => setShowCerrarCaja(true), <Box key="box2" size={16} />],
-              ["Facturas", () => setShowFacturas(true), <Archive key="archive1" size={16} />],
-              ["Catálogo", () => setShowCatalogo(true), <Archive key="archive2" size={16} />],
-              ["Inventario", () => setShowInventario(true), <Archive key="archive3" size={16} />],
-            ].map(([label, action, icon]) => (
-              <button
-                key={label}
-                onClick={action}
-                className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition text-sm ${
-                  theme === "dark"
-                    ? "border-slate-700 bg-slate-800 hover:bg-slate-700"
-                    : "border-orange-300 bg-white text-orange-700 hover:bg-orange-50"
-                }`}
-              >
-                {icon}
-                {label}
+              ["Clientes", () => setShowClientes(true), <Users key="users" size={16} />, "clientes_cajero"],
+              ["Abrir Caja", () => setShowAbrirCaja(true), <Box key="box1" size={16} />, "abrir_caja"],
+              ["Cerrar Caja", () => setShowCerrarCaja(true), <Box key="box2" size={16} />, "cerrar_caja"],
+              ["Facturas", () => setShowFacturas(true), <Archive key="archive1" size={16} />, "consulta_facturas"],
+              ["Catálogo", () => setShowCatalogo(true), <Archive key="archive2" size={16} />, "catalogo"],
+              ["Inventario", () => setShowInventario(true), <Archive key="archive3" size={16} />, "consulta_productos"],
+            ]
+              .filter(([, , , moduloId]) => {
+                // Si no hay moduloId, mostrar por defecto (para compatibilidad)
+                if (!moduloId) return true;
+                // Si no se han cargado los permisos aún, no mostrar nada
+                if (!permisosLoaded) return false;
+                // Mostrar solo si el usuario tiene permiso
+                return userPermisos[moduloId] === true;
+              })
+              .map(([label, action, icon]) => (
+                <button
+                  key={label}
+                  onClick={action}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition text-sm ${
+                    theme === "dark"
+                      ? "border-slate-700 bg-slate-800 hover:bg-slate-700"
+                      : "border-orange-300 bg-white text-orange-700 hover:bg-orange-50"
+                  }`}
+                >
+                  {icon}
+                  {label}
               </button>
             ))}
           </div>

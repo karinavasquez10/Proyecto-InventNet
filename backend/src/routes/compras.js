@@ -1,6 +1,7 @@
 // routes/compras.js (ajustado: snapshot completo de detalles para restore)
 import express from 'express';
 import pool from '../config/database.js';
+import { registrarAuditoria } from '../utils/auditoria.js';
 
 const router = express.Router();
 
@@ -59,6 +60,22 @@ router.post('/', async (req, res) => {
     const id_compra = compraResult.insertId;
 
     await connection.commit();
+
+    // Registrar auditoría de creación de compra
+    await registrarAuditoria({
+      id_usuario,
+      accion: 'Creación de compra (cabecera)',
+      tabla_nombre: 'compras',
+      registro_id: id_compra,
+      detalles: {
+        id_compra,
+        id_proveedor,
+        fecha: fecha || new Date(),
+        observaciones
+      },
+      req
+    });
+
     res.status(201).json({ id_compra, message: 'Cabecera de compra creada' });
   } catch (error) {
     await connection.rollback();
@@ -98,6 +115,24 @@ router.post('/detalle', async (req, res) => {
     );
 
     await connection.commit();
+
+    // Registrar auditoría de adición de detalle de compra
+    await registrarAuditoria({
+      id_usuario: req.user?.id || 1,
+      accion: 'Adición de detalle de compra',
+      tabla_nombre: 'detalle_compras',
+      registro_id: detalleResult.insertId,
+      detalles: {
+        id_detalle: detalleResult.insertId,
+        id_compra,
+        id_producto,
+        cantidad: parseFloat(cantidad),
+        costo_unitario: parseFloat(costo_unitario),
+        subtotal: parseFloat(cantidad) * parseFloat(costo_unitario)
+      },
+      req
+    });
+
     res.status(201).json({ id_detalle: detalleResult.insertId, message: 'Detalle agregado' });
   } catch (error) {
     await connection.rollback();
@@ -187,6 +222,24 @@ router.delete('/detalle/:id', async (req, res) => {
     }
 
     await connection.commit();
+
+    // Registrar auditoría de eliminación de detalle de compra
+    await registrarAuditoria({
+      id_usuario: deletedBy,
+      accion: 'Eliminación de detalle de compra (soft delete)',
+      tabla_nombre: 'detalle_compras',
+      registro_id: id,
+      detalles: {
+        id_detalle: id,
+        id_compra: det.id_compra,
+        id_producto: det.id_producto,
+        cantidad: det.cantidad,
+        costo_unitario: det.costo_unitario,
+        compra_eliminada: remaining[0].count === 0
+      },
+      req
+    });
+
     res.json({ message: 'Detalle eliminado (cabecera a papelera si vacía)' });
   } catch (error) {
     await connection.rollback();
@@ -258,6 +311,24 @@ router.delete('/:id', async (req, res) => {
     );
 
     await connection.commit();
+
+    // Registrar auditoría de eliminación de compra completa
+    await registrarAuditoria({
+      id_usuario: deletedBy,
+      accion: 'Eliminación de compra completa (soft delete)',
+      tabla_nombre: 'compras',
+      registro_id: id,
+      detalles: {
+        id_compra: id,
+        total: compraRows[0]?.total || 0,
+        id_proveedor: compraRows[0]?.id_proveedor,
+        proveedor_nombre: compraRows[0]?.proveedor_nombre,
+        cantidad_detalles_eliminados: detalles.length,
+        movido_a_papelera: true
+      },
+      req
+    });
+
     res.json({ message: 'Compra eliminada (cabecera a papelera)' });
   } catch (error) {
     await connection.rollback();
