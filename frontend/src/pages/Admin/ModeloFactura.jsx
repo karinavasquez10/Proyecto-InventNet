@@ -35,7 +35,7 @@ export default function ModeloFactura({ open, onClose, datos = {} }) {
   metodoPago = "Efectivo",
   subtotal = 0,
   descuento = 0,
-  iva = 0.19,
+  iva = 0,
   total = 0,
   recibido = 0,
   cambio = 0,
@@ -43,8 +43,9 @@ export default function ModeloFactura({ open, onClose, datos = {} }) {
 } = datos;
 
 
-const totalIva = iva < 1 ? subtotal * iva : iva;
-const totalFinal = total || subtotal - descuento + totalIva;
+// Calcular IVA y total
+const totalIva = iva < 1 ? subtotal * (iva || 0.19) : iva;
+const totalFinal = total > 0 ? total : (subtotal - descuento + totalIva);
 
 
   const money = (n) =>
@@ -55,14 +56,67 @@ const totalFinal = total || subtotal - descuento + totalIva;
     });
 
   const handlePrint = () => {
-    window.print();
+    // Crear una ventana de impresión con el contenido de la factura
+    const printWindow = window.open("", "_blank", "width=600,height=800");
+    if (!printWindow) {
+      alert("❌ No se pudo abrir la ventana de impresión. Verifique que no esté bloqueada por el navegador.");
+      return;
+    }
+
+    const facturaHTML = facturaRef.current.innerHTML;
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html lang="es">
+        <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>${numero}</title>
+          <script src="https://cdn.tailwindcss.com"></script>
+          <style>
+            body { 
+              background: white; 
+              padding: 20px; 
+              display: flex; 
+              justify-content: center;
+              align-items: center;
+              min-height: 100vh;
+            }
+            @media print {
+              body { padding: 0; }
+              @page { margin: 0.5cm; }
+            }
+            /* Ocultar botones en impresión */
+            .no-print {
+              display: none !important;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="relative w-[380px] rounded-xl overflow-hidden shadow-2xl border text-sm ${
+            theme === "dark"
+              ? "bg-slate-900 border-slate-700 text-slate-100"
+              : "bg-white border-slate-200 text-slate-800"
+          }">
+            ${facturaHTML}
+          </div>
+          <script>
+            // Esperar a que se carguen los estilos de Tailwind
+            setTimeout(function() {
+              window.print();
+            }, 500);
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
   };
 
   if (!open) return null;
 
   return (
     <div
-      className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+      className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
       onClick={onClose}
     >
       <div
@@ -76,20 +130,13 @@ const totalFinal = total || subtotal - descuento + totalIva;
       >
         {/* ======= Encabezado superior ======= */}
         <div
-          className={`flex items-center justify-between px-4 py-2 border-b ${
+          className={`flex items-center justify-center px-4 py-2 border-b ${
             theme === "dark"
               ? "border-slate-700 bg-gradient-to-r from-orange-700 via-pink-700 to-fuchsia-700"
               : "border-orange-200 bg-gradient-to-r from-orange-500 via-pink-400 to-fuchsia-500"
           } text-white`}
         >
           <h2 className="font-bold text-base tracking-wide">FACTURA DE VENTA</h2>
-          <button
-            onClick={onClose}
-            className="p-1 rounded hover:bg-white/20 transition"
-            title="Cerrar"
-          >
-            <X size={16} />
-          </button>
         </div>
 
         {/* ======= Datos del negocio ======= */}
@@ -205,19 +252,21 @@ const totalFinal = total || subtotal - descuento + totalIva;
           </p>
         </div>
 
-        {/* ======= Botón imprimir ======= */}
- 
-        {!datos.modoVer && (
-          <div className="absolute top-2 right-3">
-            <button
-              onClick={handlePrint}
-              className="flex items-center gap-1 text-xs px-2 py-1 rounded-md bg-gradient-to-r from-orange-500 to-fuchsia-500 text-white hover:brightness-110 transition"
-            >
-              <Printer size={14} /> Imprimir
-            </button>
-          </div>
-        )}
-
+        {/* ======= Botones de acción ======= */}
+        <div className="px-4 pb-4 flex gap-2 no-print">
+          <button
+            onClick={onClose}
+            className="flex-1 flex items-center justify-center gap-1 text-xs px-3 py-2 rounded-md bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-white hover:bg-slate-300 dark:hover:bg-slate-600 transition"
+          >
+            <X size={14} /> Cerrar
+          </button>
+          <button
+            onClick={handlePrint}
+            className="flex-1 flex items-center justify-center gap-1 text-xs px-3 py-2 rounded-md bg-gradient-to-r from-orange-500 to-fuchsia-500 text-white hover:brightness-110 transition"
+          >
+            <Printer size={14} /> Imprimir
+          </button>
+        </div>
       </div>
     </div>
   );

@@ -203,9 +203,12 @@ router.delete('/productos/:id', async (req, res) => {
   }
 });
 
-// Actualizar stocks múltiples (usado después de una venta exitosa) - Sin cambios
+// Actualizar stocks múltiples (usado después de una venta exitosa)
 router.post('/update-stocks', async (req, res) => {
   const updates = req.body;
+  
+  console.log('[DEBUG] Datos recibidos en /update-stocks:', JSON.stringify(updates, null, 2));
+  
   if (!Array.isArray(updates) || updates.length === 0) {
     return res.status(400).json({ message: 'Debe proporcionar un array de actualizaciones de stock' });
   }
@@ -215,24 +218,53 @@ router.post('/update-stocks', async (req, res) => {
     await connection.beginTransaction();
 
     for (const update of updates) {
-      const { id_producto, quantity } = update;
-      if (!id_producto || typeof quantity !== 'number' || quantity <= 0) {
-        throw new Error('Datos inválidos en actualizaciones de stock');
+      // Aceptar tanto 'quantity' como 'cantidad_a_restar' para compatibilidad
+      const { id_producto, quantity, cantidad_a_restar } = update;
+      const cantidadADescontar = cantidad_a_restar || quantity;
+      
+      console.log(`[DEBUG] Procesando producto ID: ${id_producto}, cantidad a descontar: ${cantidadADescontar}`);
+      
+      if (!id_producto || typeof cantidadADescontar !== 'number' || cantidadADescontar <= 0) {
+        console.error('[ERROR] Datos inválidos:', { id_producto, cantidadADescontar, update });
+        throw new Error(`Datos inválidos en actualizaciones de stock. Producto ID: ${id_producto}, Cantidad: ${cantidadADescontar}`);
       }
-      const [result] = await connection.query(
-        'UPDATE productos SET stock_actual = stock_actual - ? WHERE id_producto = ? AND stock_actual >= ?',
-        [quantity, id_producto, quantity]
+      
+      // Verificar stock actual antes de actualizar
+      const [stockCheck] = await connection.query(
+        'SELECT stock_actual FROM productos WHERE id_producto = ? AND is_deleted = 0',
+        [id_producto]
       );
-      if (result.affectedRows === 0) {
-        throw new Error(`No se pudo actualizar stock para producto ${id_producto} (stock insuficiente)`);
+      
+      if (stockCheck.length === 0) {
+        throw new Error(`Producto ${id_producto} no encontrado o eliminado`);
       }
+      
+      const stockActual = stockCheck[0].stock_actual;
+      console.log(`[DEBUG] Stock actual del producto ${id_producto}: ${stockActual}`);
+      
+      if (stockActual < cantidadADescontar) {
+        throw new Error(`Stock insuficiente para producto ${id_producto}. Stock actual: ${stockActual}, Requerido: ${cantidadADescontar}`);
+      }
+      
+      // Actualizar stock
+      const [result] = await connection.query(
+        'UPDATE productos SET stock_actual = stock_actual - ? WHERE id_producto = ? AND is_deleted = 0',
+        [cantidadADescontar, id_producto]
+      );
+      
+      if (result.affectedRows === 0) {
+        throw new Error(`No se pudo actualizar stock para producto ${id_producto}`);
+      }
+      
+      console.log(`[DEBUG] ✅ Stock actualizado para producto ${id_producto}. Nuevo stock: ${stockActual - cantidadADescontar}`);
     }
 
     await connection.commit();
+    console.log('[DEBUG] ✅ Todos los stocks actualizados exitosamente');
     res.json({ success: true, message: 'Stocks actualizados exitosamente' });
   } catch (error) {
     await connection.rollback();
-    console.error('Error al actualizar stocks:', error);
+    console.error('[ERROR] Error al actualizar stocks:', error.message);
     res.status(500).json({ message: 'Error al actualizar stocks', error: error.message });
   } finally {
     connection.release();

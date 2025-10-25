@@ -312,79 +312,50 @@ async function confirmarVenta(metodo_pago = "efectivo", imprimir = false) {
     // 3. Actualizar caja con cambio REAL
     await updateCaja(totalFinal, cambioReal);
 
-    alert(`✅ Venta registrada exitosamente. ID: ${data.id_venta}\n💵 Cambio devuelto: ${money(cambioReal)}`);
+    // 4. Si se debe imprimir, preparar datos de factura
+    if (imprimir) {
+      try {
+        const datosFactura = {
+          numero: `F-${String(data.id_venta).padStart(6, "0")}`,
+          fecha: new Date().toLocaleString("es-CO"),
+          cliente: cliente?.nombre || "Cliente General",
+          cajero: usuario?.nombre || "Cajero",
+          metodoPago: metodo_pago,
+          subtotal: subtotalFinal,
+          descuento: descuentoFinal,
+          iva: impuestoFinal,
+          total: totalFinal,
+          recibido: efectivoDado,
+          cambio: cambioReal,
+          productos: items.map((it) => ({
+            id: it.id_producto,
+            nombre: it.nombre,
+            cantidad: it.cantidad,
+            precio: it.precio_unitario,
+          })),
+        };
 
-    // 4. Limpiar carrito
+        console.log("📄 Mostrando factura con datos:", datosFactura);
+        
+        // Mostrar el modal de factura
+        setFacturaDatos(datosFactura);
+        
+        // NO cerrar el modal de Cobrar todavía
+        // El usuario cerrará desde el modal de factura
+        return;
+
+      } catch (err) {
+        console.error("❌ Error al preparar factura:", err);
+        alert("❌ No se pudo preparar la factura: " + err.message);
+      }
+    }
+
+    // 5. Si no es impresión, mostrar alerta y limpiar carrito
+    alert(`✅ Venta registrada exitosamente. ID: ${data.id_venta}\n💵 Cambio devuelto: ${money(cambioReal)}`);
+    
     if (onSuccess) {
       onSuccess();
     }
-
-if (imprimir) {
-  try {
-    // 1️⃣ Datos de la factura
-    const datosFactura = {
-      numero: `F-${String(data.id_venta).padStart(6, "0")}`,
-      fecha: new Date().toLocaleString("es-CO"),
-      cliente: cliente?.nombre || "Cliente General",
-      cajero: usuario?.nombre || "Cajero",
-      metodoPago: metodo_pago,
-      subtotal: subtotalFinal,
-      descuento: descuentoFinal,
-      iva: impuestoFinal / subtotalFinal,
-      recibido: efectivoDado,
-      cambio: cambioReal,
-      productos: items.map((it) => ({
-        id: it.id_producto,
-        nombre: it.nombre,
-        cantidad: it.cantidad,
-        precio: it.precio_unitario,
-      })),
-    };
-
-    // 2️⃣ Montar el componente ModeloFactura en el DOM oculto
-    setFacturaDatos(datosFactura);
-
-    // 3️⃣ Esperar que React lo renderice
-    await new Promise((resolve) => setTimeout(resolve, 600));
-
-    const facturaContainer = document.querySelector("#factura-pdf-container .relative");
-    if (!facturaContainer) {
-      alert("No se encontró el modelo de factura en el DOM.");
-      return;
-    }
-
-    // 4️⃣ Clonar el HTML real renderizado (mantiene estilos)
-    const facturaHTML = facturaContainer.outerHTML;
-
-    // 5️⃣ Crear la nueva pestaña con tu factura
-    const printWindow = window.open("", "_blank", "width=600,height=800");
-    printWindow.document.write(`
-      <html>
-        <head>
-          <title>${datosFactura.numero}</title>
-          <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-          <style>
-            body { background: white; padding: 20px; display: flex; justify-content: center; }
-          </style>
-        </head>
-        <body>
-          ${facturaHTML}
-          <script>
-            window.onload = function() {
-              window.print();
-            };
-          </script>
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
-
-  } catch (err) {
-    console.error("❌ Error al mostrar factura:", err);
-    alert("❌ No se pudo abrir la vista previa de impresión.");
-  }
-}
-
 
     onClose();
   } catch (err) {
@@ -394,10 +365,12 @@ if (imprimir) {
 }
 
   return (
-    <div
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 sm:p-6"
-      onClick={onClose}
-    >
+    <>
+      {/* Modal de Cobrar */}
+      <div
+        className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 sm:p-6"
+        onClick={onClose}
+      >
       <div
         className={`relative w-[95vw] max-w-4xl rounded-xl shadow-2xl overflow-hidden flex flex-col md:flex-row border transition-all duration-300 py-6 sm:py-8
           ${
@@ -713,13 +686,24 @@ if (imprimir) {
           </div>
         </div>
       )}
-      {/* ======= Contenedor oculto para generar la factura PDF ======= */}
-<div id="factura-pdf-container" style={{ position: "absolute", left: "-9999px" }}>
-  {facturaDatos && <ModeloFactura open={true} datos={facturaDatos} />}
-</div>
+      </div>
+      {/* Cierre del div principal del modal de Cobrar */}
 
-
-    </div>
+      {/* Modal de Factura - Fuera del modal de Cobrar para que se muestre encima */}
+      {facturaDatos && (
+        <ModeloFactura 
+          open={true} 
+          onClose={() => {
+            setFacturaDatos(null);
+            if (onSuccess) {
+              onSuccess();
+            }
+            onClose();
+          }} 
+          datos={facturaDatos} 
+        />
+      )}
+    </>
   );
 }
 
